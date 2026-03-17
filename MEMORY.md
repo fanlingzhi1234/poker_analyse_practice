@@ -41,6 +41,7 @@
 - B哥 consumes a lot of information and wants to be able to send links directly for analysis.
 - Desired workflow for links/articles: extract key points, identify important claims/data, summarize clearly, classify with relevant tags, and store in Notion and long-term memory where appropriate.
 - Over time, these organized notes should become part of my memory system.
+- A dedicated operating document exists for this: `LINK_WORKFLOW.md`, which defines the default link/article analysis protocol to use unless B哥 asks for a different format.
 
 ## Product-building preferences
 
