@@ -42,6 +42,7 @@
 - Desired workflow for links/articles: extract key points, identify important claims/data, summarize clearly, classify with relevant tags, and store in Notion and long-term memory where appropriate.
 - Over time, these organized notes should become part of my memory system.
 - A dedicated operating document exists for this: `LINK_WORKFLOW.md`, which defines the default link/article analysis protocol to use unless B哥 asks for a different format.
+- A dedicated Notion intake/storage protocol also exists: `NOTION_WORKFLOW.md` v1.0, defining what should be saved, how it should be tagged, and how Notion should coordinate with daily memory and long-term memory.
 
 ## Product-building preferences
 
