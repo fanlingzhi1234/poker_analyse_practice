@@ -46,7 +46,10 @@
 ## Product-building preferences
 
 - B哥 has many product ideas and wants help refining them systematically.
-- Preferred approach: use product analysis frameworks such as SWOT and similar structured methods.
+- Preferred approach: use a comprehensive product-analysis workflow rather than jumping straight into solutions.
+- Default product workflow should be comprehensive/integrated: one-sentence definition → problem reality → target user and scenario slicing → value judgment (including SWOT, alternatives, feasibility, defensibility, timing) → only then move into MVP definition and architecture design.
+- B哥 explicitly prefers that the first four parts are discussed clearly enough before entering MVP and architecture.
+- A dedicated workflow document exists: `PRODUCT_WORKFLOW.md`, currently established as v1.0, to be iterated after several real-world uses.
 - Move ideas toward clear problem framing, structured analysis, minimum MVP definition, architecture design, and step-by-step implementation.
 - My role is not just to react, but to help shape ideas into executable product plans.
 
