@@ -23,6 +23,11 @@ type AnalyzeResponse = {
     overcards: number;
     notes: string[];
   };
+  futureHandDistribution: {
+    distribution: Record<string, number>;
+    sampleCount: number;
+    mode: 'estimated';
+  };
   recommendation: {
     action: 'fold' | 'check' | 'call' | 'raise';
     confidence: number;
@@ -169,6 +174,12 @@ function getDrawLabel(value: string): string {
     'combo-draw': '组合听牌',
   };
   return map[value] ?? value;
+}
+
+function getDistributionEntries(distribution: Record<string, number>) {
+  return Object.entries(distribution)
+    .filter(([_, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1]);
 }
 
 function getDrawTagStyle(value: string): React.CSSProperties {
@@ -762,6 +773,23 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div style={emptyTextStyle}>分析后这里会显示更像教练口吻的解释，以及当前优势、风险和训练重点。</div>
+              )}
+            </ResultCard>
+
+            <ResultCard title="最终牌型分布" accent="#0f766e">
+              {result ? (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={miniLabelStyle}>基于当前 Hero 手牌和公共牌，模拟最终成牌分布</div>
+                  {getDistributionEntries(result.futureHandDistribution.distribution).map(([category, value]) => (
+                    <div key={category} style={barGroupStyle}>
+                      <div style={barHeaderStyle}><span>{getMadeHandLabel(category)}</span><strong>{pct(value)}</strong></div>
+                      <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(value), background: '#0f766e' }} /></div>
+                    </div>
+                  ))}
+                  <div style={emptyTextStyle}>采样数：{result.futureHandDistribution.sampleCount.toLocaleString()}（Monte Carlo 估算）</div>
+                </div>
+              ) : (
+                <div style={emptyTextStyle}>分析后这里会显示从当前街道出发，最终最可能形成哪些牌型。</div>
               )}
             </ResultCard>
 
