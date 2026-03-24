@@ -52,6 +52,15 @@ type RangePresetMeta = {
   trainingHint: string;
 };
 
+type CompareResultItem = {
+  presetName: string;
+  label: string;
+  equity: number;
+  winRate: number;
+  tieRate: number;
+  loseRate: number;
+};
+
 type PickerTarget =
   | { area: 'hero'; index: 0 | 1 }
   | { area: 'board'; index: 0 | 1 | 2 | 3 | 4 };
@@ -291,6 +300,7 @@ export default function HomePage() {
   const [rngSeed, setRngSeed] = useState(exampleScenarios.default.rngSeed);
   const [apiBaseUrl, setApiBaseUrl] = useState('http://localhost:8787');
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [compareResults, setCompareResults] = useState<CompareResultItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
@@ -356,6 +366,12 @@ export default function HomePage() {
     return groups;
   }, [rangePresets]);
 
+  const comparePresetNames = ['standard', 'tight', 'premium', 'broadway', 'pocket-pairs'];
+  const comparePresetMetas = useMemo(
+    () => rangePresets.filter((preset) => comparePresetNames.includes(preset.name)),
+    [rangePresets],
+  );
+
   const filterRangeText = useMemo(() => {
     const tokens: string[] = [];
     if (filterPocketPairs) tokens.push('22+');
@@ -378,6 +394,7 @@ export default function HomePage() {
     setPlayerCount(scenario.playerCount);
     setRngSeed(scenario.rngSeed);
     setResult(null);
+    setCompareResults([]);
     setError(null);
     setPickerTarget(null);
     setPickerSuit(null);
@@ -453,8 +470,45 @@ export default function HomePage() {
       }
 
       setResult(data as AnalyzeResponse);
+
+      if (!filterRangeText && !rangeText.trim()) {
+        const comparePayloadBase = {
+          heroHand: validation.normalizedHero,
+          board: validation.normalizedBoard,
+          iterations: Math.min(Number(iterations), 2500),
+          rngSeed: Number(rngSeed),
+          playerCount: Number(playerCount),
+        };
+
+        const compareResponses = await Promise.all(
+          comparePresetMetas.map(async (preset) => {
+            const resp = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/analyze`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...comparePayloadBase, rangePreset: preset.name }),
+            });
+            const json = await resp.json();
+            if (!resp.ok) {
+              throw new Error(json.error ?? `Compare request failed for ${preset.label}`);
+            }
+            return {
+              presetName: preset.name,
+              label: preset.label,
+              equity: json.equity.equity,
+              winRate: json.equity.winRate,
+              tieRate: json.equity.tieRate,
+              loseRate: json.equity.loseRate,
+            } as CompareResultItem;
+          }),
+        );
+
+        setCompareResults(compareResponses.sort((a, b) => b.equity - a.equity));
+      } else {
+        setCompareResults([]);
+      }
     } catch (err) {
       setResult(null);
+      setCompareResults([]);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -892,6 +946,32 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div style={emptyTextStyle}>分析后这里会显示从当前街道出发，最终最可能形成哪些牌型。</div>
+              )}
+            </ResultCard>
+
+            <ResultCard title="范围对比" accent="#7c3aed">
+              {result ? (
+                compareResults.length > 0 ? (
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <div style={miniLabelStyle}>在相同 Hero / Board 下，对几组常见对手范围做快速对比</div>
+                    {compareResults.map((item) => (
+                      <div key={item.presetName} style={compareRowStyle}>
+                        <div>
+                          <div style={{ fontWeight: 800 }}>{item.label}</div>
+                          <div style={{ fontSize: 12, color: '#6b7280' }}>Win {pct(item.winRate)} · Tie {pct(item.tieRate)} · Lose {pct(item.loseRate)}</div>
+                        </div>
+                        <div style={{ minWidth: 180 }}>
+                          <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(item.equity), background: '#7c3aed' }} /></div>
+                        </div>
+                        <div style={{ fontWeight: 800, color: '#5b21b6', minWidth: 64, textAlign: 'right' }}>{pct(item.equity)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={emptyTextStyle}>当前如果启用了分类筛选器或高级范围输入，范围对比会暂时关闭，以避免与你手动定义的范围冲突。</div>
+                )
+              ) : (
+                <div style={emptyTextStyle}>分析后这里会对比几组常见对手范围下的 equity 变化。</div>
               )}
             </ResultCard>
 
@@ -1758,4 +1838,15 @@ const filterSummaryStyle: React.CSSProperties = {
   fontSize: 13,
   color: '#475569',
   lineHeight: 1.65,
+};
+
+const compareRowStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(120px, 1fr) minmax(140px, 220px) 72px',
+  gap: 12,
+  alignItems: 'center',
+  padding: '10px 12px',
+  borderRadius: 12,
+  background: '#faf5ff',
+  border: '1px solid #e9d5ff',
 };
