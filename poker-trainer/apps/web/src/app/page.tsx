@@ -30,9 +30,16 @@ type AnalyzeResponse = {
   };
 };
 
+type PickerTarget =
+  | { area: 'hero'; index: 0 | 1 }
+  | { area: 'board'; index: 0 | 1 | 2 | 3 | 4 };
+
 const presetOptions = ['any-two', 'loose', 'standard', 'tight', 'premium'] as const;
 const validRanks = new Set(['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']);
 const validSuits = new Set(['s', 'h', 'd', 'c']);
+const rankOrder = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'] as const;
+const suitOrder = ['s', 'h', 'd', 'c'] as const;
+const allCards = rankOrder.flatMap((rank) => suitOrder.map((suit) => `${rank}${suit}`));
 
 const exampleScenarios = {
   default: {
@@ -72,6 +79,10 @@ function parseCardList(input: string): string[] {
     .split(/[\s,]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function cardListToInput(cards: string[]): string {
+  return cards.filter(Boolean).join(' ');
 }
 
 function normalizeCardCode(code: string): string {
@@ -137,9 +148,17 @@ function getDrawLabel(value: string): string {
   return map[value] ?? value;
 }
 
+function getSuitSymbol(suit: string): string {
+  return suit === 's' ? '♠' : suit === 'h' ? '♥' : suit === 'd' ? '♦' : '♣';
+}
+
+function getSuitColor(suit: string): string {
+  return suit === 'h' || suit === 'd' ? '#b91c1c' : '#111827';
+}
+
 function getValidationState(heroCards: string[], boardCards: string[]) {
-  const normalizedHero = heroCards.map(normalizeCardCode);
-  const normalizedBoard = boardCards.map(normalizeCardCode);
+  const normalizedHero = heroCards.map(normalizeCardCode).filter(Boolean);
+  const normalizedBoard = boardCards.map(normalizeCardCode).filter(Boolean);
   const allCards = [...normalizedHero, ...normalizedBoard];
 
   const invalidCards = allCards.filter((card) => !isValidCardCode(card));
@@ -171,6 +190,47 @@ function getValidationState(heroCards: string[], boardCards: string[]) {
   };
 }
 
+function getSummaryLine(result: AnalyzeResponse): string {
+  if (result.hand.madeHand === 'high-card' && result.hand.draws.length === 0) {
+    return '当前还没成手，而且没有明显听牌，偏向谨慎处理。';
+  }
+  if (result.hand.draws.includes('combo-draw')) {
+    return '虽然未必已经很强，但组合听牌让后续改良空间明显变大。';
+  }
+  if (result.hand.madeHand !== 'high-card') {
+    return `当前已经形成${getMadeHandLabel(result.hand.madeHand)}，不是纯空气牌。`;
+  }
+  return '当前主要价值来自听牌结构和后续街道的改良机会。';
+}
+
+function CardSlot({
+  value,
+  label,
+  onClick,
+}: {
+  value: string;
+  label: string;
+  onClick: () => void;
+}) {
+  const normalized = normalizeCardCode(value);
+  const filled = isValidCardCode(normalized);
+  const suit = filled ? normalized[1]! : '';
+
+  return (
+    <button type="button" onClick={onClick} style={cardSlotStyle}>
+      <div style={cardSlotLabelStyle}>{label}</div>
+      {filled ? (
+        <div style={{ ...cardFaceStyle, color: getSuitColor(suit) }}>
+          <span>{normalized[0]}</span>
+          <span>{getSuitSymbol(suit)}</span>
+        </div>
+      ) : (
+        <div style={emptyCardFaceStyle}>选择牌</div>
+      )}
+    </button>
+  );
+}
+
 export default function HomePage() {
   const [heroHandInput, setHeroHandInput] = useState(exampleScenarios.default.heroHandInput);
   const [boardInput, setBoardInput] = useState(exampleScenarios.default.boardInput);
@@ -183,11 +243,16 @@ export default function HomePage() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
 
   const heroPreview = useMemo(() => parseCardList(heroHandInput), [heroHandInput]);
   const boardPreview = useMemo(() => parseCardList(boardInput), [boardInput]);
   const validation = useMemo(() => getValidationState(heroPreview, boardPreview), [heroPreview, boardPreview]);
   const resultTone = result ? getEquityTone(result.equity.equity) : null;
+  const usedCards = useMemo(
+    () => [...validation.normalizedHero, ...validation.normalizedBoard].filter(isValidCardCode),
+    [validation.normalizedHero, validation.normalizedBoard],
+  );
 
   function applyScenario(key: keyof typeof exampleScenarios) {
     const scenario = exampleScenarios[key];
@@ -200,6 +265,36 @@ export default function HomePage() {
     setRngSeed(scenario.rngSeed);
     setResult(null);
     setError(null);
+    setPickerTarget(null);
+  }
+
+  function clearSlot(target: PickerTarget) {
+    if (target.area === 'hero') {
+      const next = [...heroPreview];
+      next[target.index] = '';
+      setHeroHandInput(cardListToInput(next));
+      return;
+    }
+
+    const next = [...boardPreview];
+    next[target.index] = '';
+    setBoardInput(cardListToInput(next.filter(Boolean)));
+  }
+
+  function applyCardToTarget(card: string) {
+    if (!pickerTarget) return;
+
+    if (pickerTarget.area === 'hero') {
+      const next = [heroPreview[0] ?? '', heroPreview[1] ?? ''];
+      next[pickerTarget.index] = card;
+      setHeroHandInput(cardListToInput(next));
+    } else {
+      const next = [boardPreview[0] ?? '', boardPreview[1] ?? '', boardPreview[2] ?? '', boardPreview[3] ?? '', boardPreview[4] ?? ''];
+      next[pickerTarget.index] = card;
+      setBoardInput(cardListToInput(next.filter(Boolean)));
+    }
+
+    setPickerTarget(null);
   }
 
   async function handleAnalyze() {
@@ -277,24 +372,49 @@ export default function HomePage() {
         <div style={cardStyle}>
           <h2 style={sectionTitleStyle}>输入参数</h2>
 
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>点牌器</div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <div style={pickerLabelStyle}>Hero Hand</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <CardSlot value={heroPreview[0] ?? ''} label="H1" onClick={() => setPickerTarget({ area: 'hero', index: 0 })} />
+                  <CardSlot value={heroPreview[1] ?? ''} label="H2" onClick={() => setPickerTarget({ area: 'hero', index: 1 })} />
+                </div>
+              </div>
+
+              <div>
+                <div style={pickerLabelStyle}>Board</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {([0, 1, 2, 3, 4] as const).map((index) => (
+                    <CardSlot
+                      key={index}
+                      value={boardPreview[index] ?? ''}
+                      label={`B${index + 1}`}
+                      onClick={() => setPickerTarget({ area: 'board', index })}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <label style={labelStyle}>
             API Base URL
             <input style={inputStyle} value={apiBaseUrl} onChange={(e) => setApiBaseUrl(e.target.value)} />
           </label>
 
           <label style={labelStyle}>
-            Hero Hand（两张）
+            Hero Hand（文本 fallback）
             <input style={inputStyle} value={heroHandInput} onChange={(e) => setHeroHandInput(e.target.value)} placeholder="As Kd" />
           </label>
-          <small style={hintStyle}>示例：As Kd / Ah Ac</small>
-          <small style={hintStyle}>预览：{heroPreview.join(', ') || '—'}</small>
+          <small style={hintStyle}>也可以直接手输，点牌器和文本输入会同步。</small>
 
           <label style={labelStyle}>
-            Board（0/3/4/5 张）
+            Board（文本 fallback）
             <input style={inputStyle} value={boardInput} onChange={(e) => setBoardInput(e.target.value)} placeholder="Qh Js 5d" />
           </label>
-          <small style={hintStyle}>示例：Qh Js 5d / 留空表示翻前</small>
-          <small style={hintStyle}>预览：{boardPreview.join(', ') || '—'}</small>
+          <small style={hintStyle}>支持 0 / 3 / 4 / 5 张公共牌。</small>
 
           <label style={labelStyle}>
             Range Preset
@@ -309,12 +429,7 @@ export default function HomePage() {
 
           <label style={labelStyle}>
             Range Text（可选，填写后优先于 preset）
-            <input
-              style={inputStyle}
-              value={rangeText}
-              onChange={(e) => setRangeText(e.target.value)}
-              placeholder="TT+,AJs+,KQo"
-            />
+            <input style={inputStyle} value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="TT+,AJs+,KQo" />
           </label>
           <small style={hintStyle}>支持：AA / AKs / AKo / TT+ / AJs+ / 76s-54s / 逗号组合</small>
 
@@ -366,9 +481,7 @@ export default function HomePage() {
             <h2 style={sectionTitleStyle}>分析结论</h2>
 
             {!result ? (
-              <div style={{ color: '#666', lineHeight: 1.7 }}>
-                还没有结果。建议先点上面的示例按钮，然后直接开始分析。
-              </div>
+              <div style={{ color: '#666', lineHeight: 1.7 }}>还没有结果。建议先点一个示例，或者直接在左边点牌后开始分析。</div>
             ) : (
               <>
                 <div
@@ -383,10 +496,7 @@ export default function HomePage() {
                   <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 6 }}>结论先看</div>
                   <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>{actionLabel(result.recommendation.action)}</div>
                   <div style={{ fontSize: 15, lineHeight: 1.6 }}>
-                    当前 equity <strong>{pct(result.equity.equity)}</strong>，整体状态属于 <strong>{resultTone?.label}</strong>。
-                    {result.hand.madeHand === 'high-card'
-                      ? ' 目前尚未成手，需要重点关注听牌与后续改良空间。'
-                      : ` 当前已经形成 ${getMadeHandLabel(result.hand.madeHand)}，不是纯空气牌。`}
+                    当前 equity <strong>{pct(result.equity.equity)}</strong>，整体状态属于 <strong>{resultTone?.label}</strong>。{getSummaryLine(result)}
                   </div>
                 </div>
 
@@ -465,6 +575,59 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {pickerTarget ? (
+        <div style={modalOverlayStyle} onClick={() => setPickerTarget(null)}>
+          <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>选择牌面</div>
+                <div style={{ color: '#666', fontSize: 13 }}>
+                  {pickerTarget.area === 'hero' ? `Hero 第 ${pickerTarget.index + 1} 张` : `Board 第 ${pickerTarget.index + 1} 张`}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" style={secondaryButtonStyle} onClick={() => clearSlot(pickerTarget)}>
+                  清空这个位置
+                </button>
+                <button type="button" style={secondaryButtonStyle} onClick={() => setPickerTarget(null)}>
+                  关闭
+                </button>
+              </div>
+            </div>
+
+            <div style={pickerGridStyle}>
+              {allCards.map((card) => {
+                const normalized = normalizeCardCode(card);
+                const suit = normalized[1]!;
+                const currentValue = pickerTarget.area === 'hero' ? heroPreview[pickerTarget.index] ?? '' : boardPreview[pickerTarget.index] ?? '';
+                const isCurrent = normalizeCardCode(currentValue) === normalized;
+                const isUsedElsewhere = usedCards.includes(normalized) && !isCurrent;
+
+                return (
+                  <button
+                    key={card}
+                    type="button"
+                    disabled={isUsedElsewhere}
+                    onClick={() => applyCardToTarget(normalized)}
+                    style={{
+                      ...pickerCardStyle,
+                      opacity: isUsedElsewhere ? 0.35 : 1,
+                      borderColor: isCurrent ? '#2563eb' : '#d1d5db',
+                      background: isCurrent ? '#eff6ff' : '#fff',
+                      color: getSuitColor(suit),
+                    }}
+                  >
+                    <span>{normalized[0]}</span>
+                    <span>{getSuitSymbol(suit)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>已被当前 Hero/Board 占用的牌会自动禁用，避免重复选牌。</div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -526,6 +689,14 @@ const buttonStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  borderRadius: 8,
+  border: '1px solid #d1d5db',
+  background: '#fff',
+  cursor: 'pointer',
+};
+
 const chipButtonStyle: React.CSSProperties = {
   padding: '8px 12px',
   borderRadius: 999,
@@ -577,4 +748,94 @@ const metricLabelStyle: React.CSSProperties = {
 const metricValueStyle: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 800,
+};
+
+const pickerLabelStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: '#4b5563',
+  marginBottom: 6,
+  fontWeight: 700,
+};
+
+const cardSlotStyle: React.CSSProperties = {
+  width: 72,
+  borderRadius: 12,
+  border: '1px solid #d1d5db',
+  background: '#fff',
+  padding: 8,
+  cursor: 'pointer',
+};
+
+const cardSlotLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#6b7280',
+  marginBottom: 6,
+};
+
+const cardFaceStyle: React.CSSProperties = {
+  minHeight: 52,
+  borderRadius: 10,
+  border: '1px solid #e5e7eb',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 22,
+  fontWeight: 800,
+  gap: 2,
+  background: '#f9fafb',
+};
+
+const emptyCardFaceStyle: React.CSSProperties = {
+  minHeight: 52,
+  borderRadius: 10,
+  border: '1px dashed #d1d5db',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+  color: '#9ca3af',
+  background: '#fafafa',
+};
+
+const modalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(15, 23, 42, 0.55)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 24,
+  zIndex: 50,
+};
+
+const modalCardStyle: React.CSSProperties = {
+  width: 'min(860px, 100%)',
+  maxHeight: '90vh',
+  overflow: 'auto',
+  background: '#fff',
+  borderRadius: 16,
+  padding: 18,
+  boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
+};
+
+const pickerGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(56px, 1fr))',
+  gap: 8,
+};
+
+const pickerCardStyle: React.CSSProperties = {
+  minHeight: 64,
+  borderRadius: 10,
+  border: '1px solid #d1d5db',
+  background: '#fff',
+  fontSize: 22,
+  fontWeight: 800,
+  cursor: 'pointer',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 2,
 };
