@@ -39,6 +39,10 @@ type AnalyzeResponse = {
     strengths: string[];
     risks: string[];
     focus: string[];
+    adjustments: {
+      tighterRange: string;
+      widerRange: string;
+    };
   };
 };
 
@@ -72,6 +76,12 @@ const validRanks = new Set(['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q
 const validSuits = new Set(['s', 'h', 'd', 'c']);
 const rankOrder = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'] as const;
 const suitOrder = ['s', 'h', 'd', 'c'] as const;
+
+const modePresets = {
+  quick: { label: '快速', iterations: '2000' },
+  standard: { label: '标准', iterations: '5000' },
+  deep: { label: '精细', iterations: '12000' },
+} as const;
 
 const exampleScenarios = {
   default: {
@@ -259,6 +269,7 @@ function CardSlot({ value, label, onClick }: { value: string; label: string; onC
   );
 }
 
+
 function MetricBubble({ label, value }: { label: string; value: string }) {
   return (
     <div style={metricBubbleStyle}>
@@ -319,6 +330,7 @@ export default function HomePage() {
   const [pickerSuit, setPickerSuit] = useState<string | null>(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [modePreset, setModePreset] = useState<keyof typeof modePresets>('standard');
   const [feedbackSubject, setFeedbackSubject] = useState('Poker Trainer 反馈');
   const [feedbackMessage, setFeedbackMessage] = useState('我想反馈的问题/建议：');
   const [openSection, setOpenSection] = useState<AccordionKey>('explanation');
@@ -385,6 +397,7 @@ export default function HomePage() {
     setRangePreset(scenario.rangePreset);
     setRangeText(scenario.rangeText);
     setIterations(scenario.iterations);
+    setModePreset(scenario.iterations === '2000' ? 'quick' : scenario.iterations === '12000' ? 'deep' : 'standard');
     setPlayerCount(scenario.playerCount);
     setRngSeed(scenario.rngSeed);
     setResult(null);
@@ -447,12 +460,18 @@ export default function HomePage() {
     setShowMoreRanges(false);
     setShowLowFreqSettings(false);
     setIterations(exampleScenarios.default.iterations);
+    setModePreset('standard');
     setPlayerCount(exampleScenarios.default.playerCount);
     setRngSeed(exampleScenarios.default.rngSeed);
     setResult(null);
     setCompareResults([]);
     setError(null);
     setOpenSection('explanation');
+  }
+
+  function applyModePreset(mode: keyof typeof modePresets) {
+    setModePreset(mode);
+    setIterations(modePresets[mode].iterations);
   }
 
   async function handleAnalyze() {
@@ -673,6 +692,18 @@ export default function HomePage() {
                 <div style={{ ...warningNoticeStyle, background: '#ecfdf5', borderColor: '#86efac', color: '#166534' }}>输入格式看起来没问题，可以直接分析。</div>
               )}
 
+              <div style={subSectionWrapStyle}>
+                <div style={subSectionTitleStyle}>分析模式</div>
+                <div style={chipWrapStyle}>
+                  {Object.entries(modePresets).map(([key, item]) => (
+                    <button key={key} type="button" onClick={() => applyModePreset(key as keyof typeof modePresets)} style={{ ...pillButtonStyle, ...(modePreset === key ? pillButtonActiveStyle : {}) }}>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={helperTextStyle}>快速：更轻量；标准：默认训练；精细：更稳但更慢。</div>
+              </div>
+
               <div style={stickyActionWrapStyle}>
                 <button onClick={handleAnalyze} disabled={loading || !validation.isValid} style={primaryActionStyle}>
                   {loading ? '分析中…' : '开始分析'}
@@ -892,6 +923,14 @@ export default function HomePage() {
                     <div>
                       <div style={miniLabelStyle}>训练重点</div>
                       <div style={stackListStyle}>{result.explanation.focus.map((item) => <div key={item} style={{ ...softInsightStyle, background: '#eff6ff', color: '#1d4ed8' }}>{item}</div>)}</div>
+                    </div>
+
+                    <div>
+                      <div style={miniLabelStyle}>范围变化提醒</div>
+                      <div style={stackListStyle}>
+                        <div style={{ ...softInsightStyle, background: '#faf5ff', color: '#7c3aed' }}><strong>如果对手更紧：</strong>{result.explanation.adjustments.tighterRange}</div>
+                        <div style={{ ...softInsightStyle, background: '#eff6ff', color: '#1d4ed8' }}><strong>如果对手更宽：</strong>{result.explanation.adjustments.widerRange}</div>
+                      </div>
                     </div>
                   </div>
                 ) : <div style={emptyTextStyle}>分析后这里会显示教练式解释。</div>}
