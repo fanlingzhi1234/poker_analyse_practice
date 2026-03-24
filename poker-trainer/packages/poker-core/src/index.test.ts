@@ -5,6 +5,7 @@ import {
   analyzeDraws,
   assertUniqueCards,
   calculateEquityMonteCarlo,
+  calculateFutureHandDistribution,
   compareHandEvaluations,
   createCard,
   createDeck,
@@ -203,5 +204,36 @@ test('calculateEquityMonteCarlo rejects fully blocked villain range', () => {
         villainRange: [{ cards: [createCard('As'), createCard('Kh')] }],
       }),
     /fully blocked/,
+  );
+});
+
+test('calculateFutureHandDistribution returns normalized distribution for flop', () => {
+  const result = calculateFutureHandDistribution({
+    heroCards: ['As', 'Kd'],
+    boardCards: ['Qh', 'Js', '5d'],
+    iterations: 2000,
+    rngSeed: 99,
+  });
+
+  const sum = Object.values(result.distribution).reduce((acc, value) => acc + value, 0);
+  assert.equal(result.sampleCount, 2000);
+  assert.equal(Math.abs(sum - 1) < 1e-9, true);
+});
+
+test('calculateFutureHandDistribution becomes deterministic on river', () => {
+  const result = calculateFutureHandDistribution({
+    heroCards: ['As', 'Ah'],
+    boardCards: ['Ac', 'Ad', '2h', '3d', '4s'],
+    iterations: 2000,
+    rngSeed: 11,
+  });
+
+  assert.equal(result.sampleCount, 1);
+  assert.equal(result.distribution['four-of-a-kind'], 1);
+  assert.equal(
+    Object.entries(result.distribution)
+      .filter(([_, value]) => value > 0)
+      .length,
+    1,
   );
 });

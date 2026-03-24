@@ -55,6 +55,19 @@ export interface EquityAnalysisResult {
   mode: 'estimated';
 }
 
+export interface FutureHandDistributionOptions {
+  heroCards: Array<Card | string>;
+  boardCards?: Array<Card | string>;
+  iterations?: number;
+  rngSeed?: number;
+}
+
+export interface FutureHandDistributionResult {
+  distribution: Record<HandCategory, number>;
+  sampleCount: number;
+  mode: 'estimated';
+}
+
 export function createCard(code: string): Card {
   const normalized = code.trim().toUpperCase();
 
@@ -299,6 +312,75 @@ function detectStraightDraws(hero: Card[], board: Card[]): DrawType[] {
   return [];
 }
 
+function createSeededRng(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function pickRandomIndex(length: number, rng: () => number): number {
+  return Math.floor(rng() * length);
+}
+
+function normalizeVillainRange(
+  villainRange: Array<{ cards: [Card, Card]; weight?: number }>,
+  blockedCodes: Set<string>,
+): Array<{ cards: [Card, Card]; weight: number }> {
+  return villainRange
+    .filter((combo) => !combo.cards.some((card) => blockedCodes.has(card.code)))
+    .map((combo) => ({
+      cards: combo.cards,
+      weight: combo.weight ?? 1,
+    }))
+    .filter((combo) => combo.weight > 0);
+}
+
+function pickWeightedCombo<T extends { weight: number }>(items: T[], rng: () => number): T {
+  const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+  let threshold = rng() * totalWeight;
+
+  for (const item of items) {
+    threshold -= item.weight;
+    if (threshold <= 0) {
+      return item;
+    }
+  }
+
+  return items[items.length - 1]!;
+}
+
+function validateHeroAndBoard(heroCards: Array<Card | string>, boardCards: Array<Card | string>) {
+  const hero = toCards(heroCards);
+  const board = toCards(boardCards);
+
+  if (hero.length !== 2) {
+    throw new Error(`Hero hand must contain exactly 2 cards, got ${hero.length}`);
+  }
+
+  if (![0, 3, 4, 5].includes(board.length)) {
+    throw new Error(`Board must contain 0, 3, 4, or 5 cards, got ${board.length}`);
+  }
+
+  assertUniqueCards([...hero, ...board]);
+  return { hero, board };
+}
+
+function createEmptyDistribution(): Record<HandCategory, number> {
+  return {
+    'high-card': 0,
+    'one-pair': 0,
+    'two-pair': 0,
+    'three-of-a-kind': 0,
+    straight: 0,
+    flush: 0,
+    'full-house': 0,
+    'four-of-a-kind': 0,
+    'straight-flush': 0,
+  };
+}
+
 export function compareHandEvaluations(left: HandEvaluation, right: HandEvaluation): number {
   if (left.categoryRank > right.categoryRank) return 1;
   if (left.categoryRank < right.categoryRank) return -1;
@@ -331,18 +413,7 @@ export function evaluateBestHand(cards: Array<Card | string>): HandEvaluation {
 }
 
 export function analyzeDraws(heroCards: Array<Card | string>, boardCards: Array<Card | string>): DrawAnalysis {
-  const hero = toCards(heroCards);
-  const board = toCards(boardCards);
-
-  if (hero.length !== 2) {
-    throw new Error(`Hero hand must contain exactly 2 cards, got ${hero.length}`);
-  }
-
-  if (![0, 3, 4, 5].includes(board.length)) {
-    throw new Error(`Board must contain 0, 3, 4, or 5 cards, got ${board.length}`);
-  }
-
-  assertUniqueCards([...hero, ...board]);
+  const { hero, board } = validateHeroAndBoard(heroCards, boardCards);
 
   const evaluation = board.length >= 3 ? evaluateBestHand([...hero, ...board]) : null;
   const overcards = countOvercards(hero, board);
@@ -396,58 +467,8 @@ export function analyzeDraws(heroCards: Array<Card | string>, boardCards: Array<
   };
 }
 
-function createSeededRng(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (1664525 * state + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function pickRandomIndex(length: number, rng: () => number): number {
-  return Math.floor(rng() * length);
-}
-
-function normalizeVillainRange(
-  villainRange: Array<{ cards: [Card, Card]; weight?: number }>,
-  blockedCodes: Set<string>,
-): Array<{ cards: [Card, Card]; weight: number }> {
-  return villainRange
-    .filter((combo) => !combo.cards.some((card) => blockedCodes.has(card.code)))
-    .map((combo) => ({
-      cards: combo.cards,
-      weight: combo.weight ?? 1,
-    }))
-    .filter((combo) => combo.weight > 0);
-}
-
-function pickWeightedCombo<T extends { weight: number }>(items: T[], rng: () => number): T {
-  const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-  let threshold = rng() * totalWeight;
-
-  for (const item of items) {
-    threshold -= item.weight;
-    if (threshold <= 0) {
-      return item;
-    }
-  }
-
-  return items[items.length - 1]!;
-}
-
 export function calculateEquityMonteCarlo(options: EquityAnalysisOptions): EquityAnalysisResult {
-  const hero = toCards(options.heroCards);
-  const board = toCards(options.boardCards ?? []);
-
-  if (hero.length !== 2) {
-    throw new Error(`Hero hand must contain exactly 2 cards, got ${hero.length}`);
-  }
-
-  if (![0, 3, 4, 5].includes(board.length)) {
-    throw new Error(`Board must contain 0, 3, 4, or 5 cards, got ${board.length}`);
-  }
-
-  assertUniqueCards([...hero, ...board]);
+  const { hero, board } = validateHeroAndBoard(options.heroCards, options.boardCards ?? []);
 
   if (options.villainRange.length === 0) {
     throw new Error('Villain range cannot be empty');
@@ -502,6 +523,50 @@ export function calculateEquityMonteCarlo(options: EquityAnalysisOptions): Equit
     tieRate,
     loseRate,
     equity: winRate + tieRate / 2,
+    sampleCount,
+    mode: 'estimated',
+  };
+}
+
+export function calculateFutureHandDistribution(options: FutureHandDistributionOptions): FutureHandDistributionResult {
+  const { hero, board } = validateHeroAndBoard(options.heroCards, options.boardCards ?? []);
+  const iterations = options.iterations ?? 20000;
+  const distribution = createEmptyDistribution();
+
+  if (board.length === 5) {
+    const finalHand = evaluateBestHand([...hero, ...board]);
+    distribution[finalHand.category] = 1;
+    return {
+      distribution,
+      sampleCount: 1,
+      mode: 'estimated',
+    };
+  }
+
+  const rng = createSeededRng(options.rngSeed ?? 1337);
+  const blockedCodes = new Set([...hero, ...board].map((card) => card.code));
+
+  for (let i = 0; i < iterations; i += 1) {
+    const remainingDeck = createDeck().filter((card) => !blockedCodes.has(card.code));
+    const boardCompletion = [...board];
+
+    while (boardCompletion.length < 5) {
+      const randomIndex = pickRandomIndex(remainingDeck.length, rng);
+      const [picked] = remainingDeck.splice(randomIndex, 1);
+      boardCompletion.push(picked!);
+    }
+
+    const finalHand = evaluateBestHand([...hero, ...boardCompletion]);
+    distribution[finalHand.category] += 1;
+  }
+
+  const sampleCount = iterations;
+  for (const category of HAND_CATEGORY_NAMES) {
+    distribution[category] = distribution[category] / sampleCount;
+  }
+
+  return {
+    distribution,
     sampleCount,
     mode: 'estimated',
   };
