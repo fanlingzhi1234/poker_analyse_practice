@@ -320,6 +320,11 @@ export default function HomePage() {
     [rangePresets, rangePreset],
   );
 
+  const quickRangePresets = useMemo(
+    () => rangePresets.filter((preset) => ['any-two', 'standard', 'tight', 'premium', 'broadway', 'pocket-pairs', 'suited-aces', 'suited-connectors'].includes(preset.name)),
+    [rangePresets],
+  );
+
   function applyScenario(key: keyof typeof exampleScenarios) {
     const scenario = exampleScenarios[key];
     setHeroHandInput(scenario.heroHandInput);
@@ -490,19 +495,66 @@ export default function HomePage() {
                   <input style={inputStyle} value={boardInput} onChange={(e) => setBoardInput(e.target.value)} placeholder="Qh Js 5d" />
                 </label>
 
+                <div style={labelStyle}>
+                  <div style={{ marginBottom: 8 }}>快速范围</div>
+                  <div style={quickPresetWrapStyle}>
+                    {quickRangePresets.length > 0
+                      ? quickRangePresets.map((preset) => {
+                          const active = !rangeText.trim() && rangePreset === preset.name;
+                          return (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => {
+                                setRangePreset(preset.name as (typeof presetOptions)[number]);
+                                setRangeText('');
+                              }}
+                              style={{
+                                ...quickPresetChipStyle,
+                                background: active ? '#111827' : '#fff',
+                                color: active ? '#fff' : '#111827',
+                                borderColor: active ? '#111827' : '#d1d5db',
+                              }}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })
+                      : presetOptions.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              setRangePreset(preset);
+                              setRangeText('');
+                            }}
+                            style={{ ...quickPresetChipStyle, background: rangePreset === preset ? '#111827' : '#fff', color: rangePreset === preset ? '#fff' : '#111827', borderColor: rangePreset === preset ? '#111827' : '#d1d5db' }}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                  </div>
+                </div>
+
                 <label style={labelStyle}>
-                  Range Preset
-                  <select style={inputStyle} value={rangePreset} onChange={(e) => setRangePreset(e.target.value as (typeof presetOptions)[number])}>
-                    {presetOptions.map((preset) => (
-                      <option key={preset} value={preset}>
-                        {preset}
-                      </option>
-                    ))}
+                  更多范围（下拉选择）
+                  <select style={inputStyle} value={rangePreset} onChange={(e) => { setRangePreset(e.target.value as (typeof presetOptions)[number]); setRangeText(''); }}>
+                    {rangePresets.length > 0
+                      ? rangePresets.map((preset) => (
+                          <option key={preset.name} value={preset.name}>
+                            {preset.label}（{preset.category}）
+                          </option>
+                        ))
+                      : presetOptions.map((preset) => (
+                          <option key={preset} value={preset}>
+                            {preset}
+                          </option>
+                        ))}
                   </select>
                 </label>
 
                 <label style={labelStyle}>
-                  Range Text（可选，填写后优先于 preset）
+                  Range Text（高级，可选；填写后优先于 preset）
                   <input style={inputStyle} value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="TT+,AJs+,KQo" />
                 </label>
               </div>
@@ -1461,4 +1513,20 @@ const rangeHintStyle: React.CSSProperties = {
   color: '#1d4ed8',
   lineHeight: 1.65,
   fontSize: 14,
+};
+
+const quickPresetWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+};
+
+const quickPresetChipStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  borderRadius: 999,
+  border: '1px solid #d1d5db',
+  background: '#fff',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 700,
 };
