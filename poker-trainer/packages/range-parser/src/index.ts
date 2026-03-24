@@ -5,46 +5,173 @@ const RANKS_ASC = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', '
 type RankChar = (typeof RANKS_ASC)[number];
 type HandSuitType = 'p' | 's' | 'o';
 
+type RangeWidth = '超宽' | '宽' | '中' | '紧';
+
 export interface HandClass {
   left: RankChar;
   right: RankChar;
   suitType: HandSuitType;
 }
 
-export interface RangePreset {
+export interface RangePresetDefinition {
   name: string;
+  label: string;
   description: string;
+  width: RangeWidth;
+  category: '宽度类' | '牌型认知类' | '风格导向类';
+  representativeHands: string[];
+  trainingHint: string;
   tokens: string[];
+}
+
+export interface RangePreset extends RangePresetDefinition {
+  combos: Combo[];
+  comboCount: number;
 }
 
 const SUITS = ['s', 'h', 'd', 'c'] as const;
 const RANK_INDEX: Record<RankChar, number> = Object.fromEntries(RANKS_ASC.map((rank, index) => [rank, index])) as Record<RankChar, number>;
 
-const RANGE_PRESETS: Record<string, RangePreset> = {
+const RANGE_PRESET_DEFINITIONS: Record<string, RangePresetDefinition> = {
   'any-two': {
     name: 'any-two',
-    description: '任意两张起手牌',
+    label: '任意两张',
+    description: '不对起手牌做任何限制，代表完全开放的两张牌范围。',
+    width: '超宽',
+    category: '宽度类',
+    representativeHands: ['72o', 'J4o', 'A9s', 'KQo'],
+    trainingHint: '适合在没有读牌信息时做最粗粒度的范围假设。',
     tokens: ['ALL'],
   },
   loose: {
     name: 'loose',
-    description: '较宽的娱乐局/宽松入池范围',
+    label: '宽范围',
+    description: '较宽的娱乐局入池范围，覆盖较多高张、同花牌和连张。',
+    width: '宽',
+    category: '宽度类',
+    representativeHands: ['A8o', 'KTo', '87s', '54s'],
+    trainingHint: '适合模拟偏松玩家，观察宽范围如何改变你的 equity。',
     tokens: ['22+', 'A2s+', 'K7s+', 'Q8s+', 'J8s+', 'T8s+', '97s+', '87s', '76s', '65s', '54s', 'A8o+', 'KTo+', 'QTo+', 'JTo'],
   },
   standard: {
     name: 'standard',
-    description: '中等强度的常见起手范围',
+    label: '标准范围',
+    description: '中等强度、较常见的正常入池范围，适合作为默认对手模型。',
+    width: '中',
+    category: '宽度类',
+    representativeHands: ['55+', 'A7s+', 'KTs+', 'AQo+', 'KQo'],
+    trainingHint: '适合在没有额外读牌时作为默认分析入口。',
     tokens: ['55+', 'A7s+', 'KTs+', 'QTs+', 'JTs', 'T9s', '98s', 'AQo+', 'AJo', 'KQo'],
   },
   tight: {
     name: 'tight',
-    description: '偏紧的稳健起手范围',
+    label: '紧范围',
+    description: '偏向高张和中高对子，整体较保守。',
+    width: '紧',
+    category: '宽度类',
+    representativeHands: ['77+', 'ATs+', 'AQo+', 'KQs'],
+    trainingHint: '适合模拟谨慎玩家，观察当对手变紧时你的继续空间如何变化。',
     tokens: ['77+', 'ATs+', 'KQs', 'AQo+', 'AJo+', 'KQo'],
   },
   premium: {
     name: 'premium',
-    description: '高强度价值起手范围',
+    label: '高强度范围',
+    description: '主要由显著强牌组成，偏重价值和高摊牌强度。',
+    width: '紧',
+    category: '宽度类',
+    representativeHands: ['TT+', 'AQs+', 'AKo', 'AKs'],
+    trainingHint: '适合模拟强动作场景，帮助你理解对手高价值范围下的决策压力。',
     tokens: ['TT+', 'AQs+', 'AKo', 'AKs'],
+  },
+  'pocket-pairs': {
+    name: 'pocket-pairs',
+    label: '口袋对子',
+    description: '两张起手牌点数相同，如 AA、99、22。',
+    width: '中',
+    category: '牌型认知类',
+    representativeHands: ['AA', '99', '55', '22'],
+    trainingHint: '适合观察翻牌后三条、超对和中对结构对胜率的影响。',
+    tokens: ['22+'],
+  },
+  broadway: {
+    name: 'broadway',
+    label: '百老汇牌',
+    description: '由 A/K/Q/J/T 组成的两张牌组合，属于高张密集范围。',
+    width: '中',
+    category: '牌型认知类',
+    representativeHands: ['AK', 'KQ', 'QJ', 'JT'],
+    trainingHint: '适合训练高张范围在翻牌后形成顶对、顺子和高 kicker 的能力。',
+    tokens: ['AKs', 'AQs', 'AJs', 'ATs', 'KQs', 'KJs', 'KTs', 'QJs', 'QTs', 'JTs', 'AKo', 'AQo', 'AJo', 'ATo', 'KQo', 'KJo', 'KTo', 'QJo', 'QTo', 'JTo'],
+  },
+  'suited-aces': {
+    name: 'suited-aces',
+    label: '同花A牌',
+    description: '所有 Axs 结构，如 A2s 到 AKs。',
+    width: '中',
+    category: '牌型认知类',
+    representativeHands: ['A2s', 'A5s', 'AJs', 'AKs'],
+    trainingHint: '适合训练 A 高张与同花潜力同时存在时的改良路径。',
+    tokens: ['A2s+'],
+  },
+  'suited-connectors': {
+    name: 'suited-connectors',
+    label: '同花连张',
+    description: '连续点数且同花的起手牌，如 98s、87s、76s。',
+    width: '中',
+    category: '牌型认知类',
+    representativeHands: ['98s', '87s', '76s', '65s', '54s'],
+    trainingHint: '适合观察顺子、同花和组合听牌在翻后如何提升可玩性。',
+    tokens: ['98s', '87s', '76s', '65s', '54s'],
+  },
+  'suited-one-gappers': {
+    name: 'suited-one-gappers',
+    label: '同花一张隔连张',
+    description: '同花且中间差一张的结构，如 J9s、T8s、97s。',
+    width: '中',
+    category: '牌型认知类',
+    representativeHands: ['J9s', 'T8s', '97s', '86s'],
+    trainingHint: '适合观察比同花连张略弱、但仍有投机价值的翻后结构。',
+    tokens: ['J9s', 'T8s', '97s', '86s', '75s', '64s'],
+  },
+  'big-cards': {
+    name: 'big-cards',
+    label: '大牌范围',
+    description: '以 A/K/Q/J/T 组成的高张组合为主，偏向顶对和高 kicker。',
+    width: '中',
+    category: '牌型认知类',
+    representativeHands: ['AK', 'AQ', 'KQ', 'QJ'],
+    trainingHint: '适合模拟喜欢高张入池的玩家，观察顶对类牌面表现。',
+    tokens: ['AKs', 'AQs', 'AJs', 'ATs', 'KQs', 'KJs', 'KTs', 'QJs', 'QTs', 'JTs', 'AKo', 'AQo', 'AJo', 'KQo', 'KJo', 'QJo'],
+  },
+  'suited-hands': {
+    name: 'suited-hands',
+    label: '同花牌',
+    description: '所有同花起手牌，强调同花和组合听牌潜力。',
+    width: '宽',
+    category: '牌型认知类',
+    representativeHands: ['AKs', 'Q9s', '76s', '42s'],
+    trainingHint: '适合训练“并未成手但具备同花潜力”的局面感。',
+    tokens: ['A2s+', 'K2s+', 'Q2s+', 'J2s+', 'T2s+', '92s+', '82s+', '72s+', '62s+', '52s+', '42s+', '32s'],
+  },
+  'value-heavy': {
+    name: 'value-heavy',
+    label: '强价值牌',
+    description: '以高对子、强 A 牌和强百老汇牌为主，偏向价值摊牌。',
+    width: '紧',
+    category: '风格导向类',
+    representativeHands: ['QQ+', 'AK', 'AQs', 'KQs'],
+    trainingHint: '适合模拟偏价值的强对手范围，理解被压制时的决策边界。',
+    tokens: ['QQ+', 'AQs+', 'AKo', 'AKs', 'KQs'],
+  },
+  speculative: {
+    name: 'speculative',
+    label: '投机牌',
+    description: '以中小对子、同花连张、同花 A 牌等依赖翻后改善的结构为主。',
+    width: '中',
+    category: '风格导向类',
+    representativeHands: ['55', 'A5s', '87s', '64s'],
+    trainingHint: '适合训练“当前不强，但后续改良空间大”的牌局理解。',
+    tokens: ['99-22', 'A9s-A2s', '98s', '87s', '76s', '65s', '54s', 'J9s', 'T8s', '97s', '86s'],
   },
 };
 
@@ -260,8 +387,8 @@ export function parseRange(rangeText: string): Combo[] {
   return dedupeCombos(combos);
 }
 
-export function getRangePreset(name: string): RangePreset & { combos: Combo[] } {
-  const preset = RANGE_PRESETS[name];
+export function getRangePreset(name: string): RangePreset {
+  const preset = RANGE_PRESET_DEFINITIONS[name];
   if (!preset) {
     throw new Error(`Unknown range preset: ${name}`);
   }
@@ -270,9 +397,10 @@ export function getRangePreset(name: string): RangePreset & { combos: Combo[] } 
   return {
     ...preset,
     combos,
+    comboCount: combos.length,
   };
 }
 
-export function listRangePresets(): RangePreset[] {
-  return Object.values(RANGE_PRESETS);
+export function listRangePresets(): RangePresetDefinition[] {
+  return Object.values(RANGE_PRESET_DEFINITIONS);
 }

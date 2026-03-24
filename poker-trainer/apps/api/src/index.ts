@@ -1,7 +1,7 @@
 import http from 'node:http';
 
 import { analyzeDraws, calculateEquityMonteCarlo, createCard } from '@poker/poker-core';
-import { getRangePreset, parseRange } from '@poker/range-parser';
+import { getRangePreset, listRangePresets, parseRange } from '@poker/range-parser';
 
 export interface AnalyzeRequest {
   heroHand: [string, string];
@@ -289,6 +289,12 @@ export function createServer() {
         const result = analyzeScenario(payload);
         res.writeHead(200, { ...corsHeaders, 'content-type': 'application/json' });
         res.end(JSON.stringify(result));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/ranges/presets') {
+        res.writeHead(200, { ...corsHeaders, 'content-type': 'application/json' });
+        res.end(JSON.stringify({ presets: listRangePresets() }));
         return;
       }
 

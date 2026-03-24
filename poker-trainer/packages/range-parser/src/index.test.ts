@@ -46,17 +46,31 @@ test('parseRange deduplicates overlapping expressions', () => {
 test('parseRange supports ALL token through preset flow', () => {
   const preset = getRangePreset('any-two');
   assert.equal(preset.combos.length, 1326);
+  assert.equal(preset.comboCount, 1326);
 });
 
-test('listRangePresets returns expected preset names', () => {
-  const presets = listRangePresets().map((preset) => preset.name);
-  assert.deepEqual(presets, ['any-two', 'loose', 'standard', 'tight', 'premium']);
+test('listRangePresets returns new v2 preset names', () => {
+  const presetNames = listRangePresets().map((preset) => preset.name);
+  assert.equal(presetNames.includes('broadway'), true);
+  assert.equal(presetNames.includes('pocket-pairs'), true);
+  assert.equal(presetNames.includes('suited-aces'), true);
+  assert.equal(presetNames.includes('suited-connectors'), true);
 });
 
-test('getRangePreset returns a non-empty premium preset', () => {
-  const preset = getRangePreset('premium');
-  assert.equal(preset.combos.length > 0, true);
-  assert.equal(preset.description.length > 0, true);
+test('getRangePreset returns metadata for user-facing display', () => {
+  const preset = getRangePreset('broadway');
+  assert.equal(preset.label, '百老汇牌');
+  assert.equal(preset.category, '牌型认知类');
+  assert.equal(preset.width, '中');
+  assert.equal(preset.representativeHands.length > 0, true);
+  assert.equal(preset.trainingHint.length > 0, true);
+  assert.equal(preset.comboCount > 0, true);
+});
+
+test('getRangePreset returns non-empty speculative preset', () => {
+  const preset = getRangePreset('speculative');
+  assert.equal(preset.comboCount > 0, true);
+  assert.equal(preset.label, '投机牌');
 });
 
 test('parseRange rejects invalid input', () => {
