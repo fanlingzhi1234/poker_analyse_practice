@@ -50,6 +50,10 @@ export interface AnalyzeResponse {
     strengths: string[];
     risks: string[];
     focus: string[];
+    adjustments: {
+      tighterRange: string;
+      widerRange: string;
+    };
   };
 }
 
@@ -79,31 +83,119 @@ function toChineseDrawLabel(value: string): string {
   return map[value] ?? value;
 }
 
+type StreetBucket = 'preflop' | 'flop' | 'turn' | 'river';
+type BoardTexture = 'dry' | 'semi-wet' | 'wet';
+type RangeStrengthBucket = 'wide' | 'medium' | 'tight' | 'premium' | 'custom';
+type PressureBucket = 'ahead' | 'marginal' | 'behind' | 'draw-dependent';
+
+function getStreetBucket(boardCount: number): StreetBucket {
+  if (boardCount === 0) return 'preflop';
+  if (boardCount === 3) return 'flop';
+  if (boardCount === 4) return 'turn';
+  return 'river';
+}
+
+function getBoardTexture(board: Array<ReturnType<typeof createCard>>): BoardTexture {
+  if (board.length < 3) return 'dry';
+
+  const rankOrder = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
+  const rankIndex = (rank: string) => rankOrder.indexOf(rank);
+  const suitCounts = new Map<string, number>();
+  const rankCounts = new Map<string, number>();
+  const sortedRanks = [...new Set(board.map((card) => rankIndex(card.rank)))].sort((a, b) => a - b);
+
+  for (const card of board) {
+    suitCounts.set(card.suit, (suitCounts.get(card.suit) ?? 0) + 1);
+    rankCounts.set(card.rank, (rankCounts.get(card.rank) ?? 0) + 1);
+  }
+
+  let score = 0;
+  if (Math.max(...suitCounts.values()) >= 3) score += 2;
+  else if (Math.max(...suitCounts.values()) === 2) score += 1;
+
+  if (Array.from(rankCounts.values()).some((count) => count >= 2)) score += 1;
+
+  const span = sortedRanks[sortedRanks.length - 1]! - sortedRanks[0]!;
+  if (span <= 4) score += 2;
+  else if (span <= 6) score += 1;
+
+  const highCards = board.filter((card) => ['A', 'K', 'Q', 'J', 'T'].includes(card.rank)).length;
+  if (highCards >= 2) score += 1;
+
+  if (score >= 4) return 'wet';
+  if (score >= 2) return 'semi-wet';
+  return 'dry';
+}
+
+function getRangeStrengthBucket(request: AnalyzeRequest, rangeSource: 'preset' | 'text'): RangeStrengthBucket {
+  if (rangeSource === 'text') return 'custom';
+
+  const preset = request.rangePreset ?? 'standard';
+  if (['any-two', 'loose', 'suited-hands'].includes(preset)) return 'wide';
+  if (['standard', 'broadway', 'speculative', 'big-cards', 'suited-aces', 'suited-connectors', 'suited-one-gappers'].includes(preset)) return 'medium';
+  if (['tight', 'value-heavy', 'pocket-pairs'].includes(preset)) return 'tight';
+  return 'premium';
+}
+
+function getPressureBucket(input: {
+  equity: number;
+  madeHand: string;
+  draws: string[];
+  street: StreetBucket;
+}): PressureBucket {
+  if (input.equity >= 0.62 && input.madeHand !== 'high-card') return 'ahead';
+  if (input.madeHand === 'high-card' && (input.draws.includes('combo-draw') || input.draws.includes('flush-draw') || input.draws.includes('oesd'))) return 'draw-dependent';
+  if (input.equity < 0.4 && input.street !== 'preflop') return 'behind';
+  return 'marginal';
+}
+
 function buildRecommendation(input: {
   boardCount: number;
   madeHand: string;
   draws: string[];
   equity: number;
+  street: StreetBucket;
+  boardTexture: BoardTexture;
+  rangeStrength: RangeStrengthBucket;
+  pressure: PressureBucket;
 }): AnalyzeResponse['recommendation'] {
   const reasons: string[] = [];
   let action: AnalyzeResponse['recommendation']['action'] = 'call';
   let confidence = 0.5;
 
-  if (input.boardCount === 0) {
+  if (input.street === 'preflop') {
     action = input.equity >= 0.55 ? 'raise' : 'call';
     reasons.push('当前是翻前单对手近似评估，建议只做粗粒度训练使用');
-  } else if (input.equity >= 0.7) {
+  } else if (input.pressure === 'ahead') {
     action = 'raise';
     confidence = 0.8;
-    reasons.push('当前 equity 明显领先，适合偏主动继续');
-  } else if (input.equity >= 0.45) {
+    reasons.push('当前权益与成手强度都支持更主动地继续施压');
+  } else if (input.pressure === 'draw-dependent') {
+    action = input.equity >= 0.4 ? 'call' : 'fold';
+    confidence = 0.62;
+    reasons.push('当前更依赖听牌改良，适合按赔率与后续街道谨慎继续');
+  } else if (input.pressure === 'marginal') {
     action = 'call';
-    confidence = 0.65;
-    reasons.push('当前 equity 尚可，适合继续观察后续街道');
+    confidence = 0.64;
+    reasons.push('当前属于边缘可继续区间，适合保留观察空间');
   } else {
     action = 'fold';
-    confidence = 0.7;
-    reasons.push('当前 equity 偏低，继续投入需要更强额外条件');
+    confidence = 0.72;
+    reasons.push('当前更像落后局面，继续投入需要非常充分的额外理由');
+  }
+
+  if (input.rangeStrength === 'premium' || input.rangeStrength === 'tight') {
+    reasons.push('对手范围偏强，边缘牌继续时需要更保守');
+    if (action === 'raise' && input.pressure !== 'ahead') action = 'call';
+  } else if (input.rangeStrength === 'wide') {
+    reasons.push('对手范围偏宽，你的高张和中等成手价值会更容易站住');
+  }
+
+  if (input.boardTexture === 'wet') {
+    reasons.push('当前牌面偏湿，后续街道变化和反超空间都更大');
+    if (input.pressure === 'marginal' && action === 'raise') action = 'call';
+  } else if (input.boardTexture === 'dry') {
+    reasons.push('当前牌面偏干，已成手和高张压制的价值更稳定');
   }
 
   if (input.draws.includes('combo-draw')) {
@@ -128,6 +220,10 @@ function buildExplanation(input: {
   draws: string[];
   boardCount: number;
   recommendation: AnalyzeResponse['recommendation'];
+  street: StreetBucket;
+  boardTexture: BoardTexture;
+  rangeStrength: RangeStrengthBucket;
+  pressure: PressureBucket;
 }): AnalyzeResponse['explanation'] {
   const handLabel = toChineseHandLabel(input.madeHand);
   const drawLabels = input.draws.map(toChineseDrawLabel);
@@ -135,10 +231,13 @@ function buildExplanation(input: {
   const risks: string[] = [];
   const focus: string[] = [];
 
-  if (input.equity >= 0.65) {
-    strengths.push('当前权益明显领先，具备较强继续价值');
-  } else if (input.equity >= 0.45) {
-    strengths.push('当前权益处于可继续区间，不算明显落后');
+  if (input.pressure === 'ahead') {
+    strengths.push('当前权益和成手质量都处于较舒服的位置');
+  } else if (input.pressure === 'marginal') {
+    strengths.push('当前权益仍在可继续区间，但容错率不算特别高');
+  } else if (input.pressure === 'draw-dependent') {
+    strengths.push('当前主要价值来自听牌改良和后续街道实现率');
+    risks.push('如果后续街道没有继续改善，当前权益会比较脆弱');
   } else {
     risks.push('当前权益偏低，继续投入需要更强理由');
   }
@@ -155,18 +254,34 @@ function buildExplanation(input: {
     risks.push('没有明显听牌支撑，容错率较低');
   }
 
+  if (input.rangeStrength === 'premium' || input.rangeStrength === 'tight') {
+    risks.push('对手范围偏强，你的边缘继续会更容易被压制');
+  } else if (input.rangeStrength === 'wide') {
+    strengths.push('对手范围偏宽时，你的高张和中等成手更容易兑现价值');
+  }
+
+  if (input.boardTexture === 'wet') {
+    risks.push('当前牌面偏湿，后续街道反超和权益波动都更大');
+  } else if (input.boardTexture === 'dry') {
+    strengths.push('当前牌面偏干，已成手或高张压制的价值更稳定');
+  }
+
   if (input.draws.includes('combo-draw')) {
-    focus.push('重点看转牌是否继续增强你的组合听牌或直接成牌');
+    focus.push('重点看下一张牌是否继续增强你的组合听牌或直接成牌');
   } else if (input.draws.includes('flush-draw') || input.draws.includes('oesd')) {
     focus.push('重点关注下一张牌是否让你获得更强成牌机会');
   } else if (input.madeHand !== 'high-card') {
-    focus.push('重点判断当前已成牌是否足够承受后续压力');
+    focus.push('重点判断当前已成牌在当前街道是否足够承受后续压力');
   } else {
     focus.push('如果没有额外赔率或读牌优势，谨慎继续会更稳妥');
   }
 
-  if (input.boardCount === 0) {
+  if (input.street === 'preflop') {
     focus.push('当前属于翻前近似训练，结果更适合用来校准起手牌感觉');
+  } else if (input.street === 'turn') {
+    focus.push('转牌已经接近最终兑现阶段，边缘听牌的继续门槛要更高一些');
+  } else if (input.street === 'river') {
+    focus.push('河牌已经没有后续改良空间，应更重视当前摊牌价值和范围压制关系');
   }
 
   const headline =
@@ -183,12 +298,30 @@ function buildExplanation(input: {
       ? `当前还是${handLabel}，${drawLabels.length ? `但带有${drawLabels.join('、')}。` : '而且缺少明确听牌。'}整体建议偏向 ${input.recommendation.action}。`
       : `当前已经形成${handLabel}。${drawLabels.length ? `同时还带有${drawLabels.join('、')}。` : ''}整体建议偏向 ${input.recommendation.action}。`;
 
+  const tighterRange =
+    input.rangeStrength === 'premium' || input.rangeStrength === 'tight'
+      ? '当前对手本来就偏紧，若再收紧，应继续下调边缘继续频率，更重视摊牌价值。'
+      : input.pressure === 'ahead'
+        ? '如果对手范围收紧，你仍可能领先，但需要减少纯压制型激进行为。'
+        : '如果对手范围收紧，这手牌通常会更接近谨慎继续甚至直接放弃。';
+
+  const widerRange =
+    input.rangeStrength === 'wide'
+      ? '当前对手已经偏宽，再放宽时你对高张和中等成手的兑现空间会继续提升。'
+      : input.pressure === 'draw-dependent'
+        ? '如果对手范围更宽，你的听牌和高张继续会得到更好的实现环境。'
+        : '如果对手范围更宽，你的当前手牌通常会比现在更容易获得继续理由。';
+
   return {
     headline,
     summary,
     strengths,
     risks,
     focus,
+    adjustments: {
+      tighterRange,
+      widerRange,
+    },
   };
 }
 
@@ -239,11 +372,25 @@ export function analyzeScenario(request: AnalyzeRequest): AnalyzeResponse {
     iterations: analysisIterations,
     rngSeed: analysisSeed,
   });
+  const street = getStreetBucket(boardCards.length);
+  const boardTexture = getBoardTexture(boardCards);
+  const rangeStrength = getRangeStrengthBucket(request, villainRange.source);
+  const pressure = getPressureBucket({
+    equity: equity.equity,
+    madeHand: hand.madeHand,
+    draws: hand.draws,
+    street,
+  });
+
   const recommendation = buildRecommendation({
     boardCount: boardCards.length,
     madeHand: hand.madeHand,
     draws: hand.draws,
     equity: equity.equity,
+    street,
+    boardTexture,
+    rangeStrength,
+    pressure,
   });
   const explanation = buildExplanation({
     equity: equity.equity,
@@ -251,6 +398,10 @@ export function analyzeScenario(request: AnalyzeRequest): AnalyzeResponse {
     draws: hand.draws,
     boardCount: boardCards.length,
     recommendation,
+    street,
+    boardTexture,
+    rangeStrength,
+    pressure,
   });
 
   return {
