@@ -56,7 +56,7 @@ type PickerTarget =
   | { area: 'hero'; index: 0 | 1 }
   | { area: 'board'; index: 0 | 1 | 2 | 3 | 4 };
 
-const presetOptions = ['any-two', 'loose', 'standard', 'tight', 'premium', 'pocket-pairs', 'broadway', 'suited-aces', 'suited-connectors'] as const;
+const presetOptions = ['any-two', 'loose', 'standard', 'tight', 'premium', 'pocket-pairs', 'broadway', 'suited-aces', 'suited-connectors', 'suited-one-gappers', 'big-cards', 'suited-hands', 'value-heavy', 'speculative'] as const;
 const validRanks = new Set(['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']);
 const validSuits = new Set(['s', 'h', 'd', 'c']);
 const rankOrder = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'] as const;
@@ -337,6 +337,20 @@ export default function HomePage() {
     [rangePresets],
   );
 
+  const groupedRangePresets = useMemo(() => {
+    const groups = {
+      宽度类: [] as RangePresetMeta[],
+      牌型认知类: [] as RangePresetMeta[],
+      风格导向类: [] as RangePresetMeta[],
+    };
+
+    for (const preset of rangePresets) {
+      groups[preset.category].push(preset);
+    }
+
+    return groups;
+  }, [rangePresets]);
+
   function applyScenario(key: keyof typeof exampleScenarios) {
     const scenario = exampleScenarios[key];
     setHeroHandInput(scenario.heroHandInput);
@@ -548,22 +562,50 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <label style={labelStyle}>
-                  更多范围（下拉选择）
-                  <select style={inputStyle} value={rangePreset} onChange={(e) => { setRangePreset(e.target.value as (typeof presetOptions)[number]); setRangeText(''); }}>
-                    {rangePresets.length > 0
-                      ? rangePresets.map((preset) => (
-                          <option key={preset.name} value={preset.name}>
-                            {preset.label}（{preset.category}）
-                          </option>
-                        ))
-                      : presetOptions.map((preset) => (
-                          <option key={preset} value={preset}>
-                            {preset}
-                          </option>
-                        ))}
-                  </select>
-                </label>
+                <div style={rangeBrowsePanelStyle}>
+                  <div style={{ fontWeight: 700, marginBottom: 10 }}>更多范围（按分类）</div>
+
+                  {rangePresets.length > 0 ? (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      {Object.entries(groupedRangePresets).map(([groupName, presets]) => (
+                        <div key={groupName}>
+                          <div style={rangeGroupTitleStyle}>{groupName}</div>
+                          <div style={quickPresetWrapStyle}>
+                            {presets.map((preset) => {
+                              const active = !rangeText.trim() && rangePreset === preset.name;
+                              return (
+                                <button
+                                  key={preset.name}
+                                  type="button"
+                                  onClick={() => {
+                                    setRangePreset(preset.name as (typeof presetOptions)[number]);
+                                    setRangeText('');
+                                  }}
+                                  style={{
+                                    ...quickPresetChipStyle,
+                                    background: active ? '#111827' : '#fff',
+                                    color: active ? '#fff' : '#111827',
+                                    borderColor: active ? '#111827' : '#d1d5db',
+                                  }}
+                                >
+                                  {preset.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <select style={inputStyle} value={rangePreset} onChange={(e) => { setRangePreset(e.target.value as (typeof presetOptions)[number]); setRangeText(''); }}>
+                      {presetOptions.map((preset) => (
+                        <option key={preset} value={preset}>
+                          {preset}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
 
                 <div style={advancedRangePanelStyle}>
                   <button
@@ -1612,4 +1654,18 @@ const advancedRangeHintStyle: React.CSSProperties = {
   color: '#475569',
   lineHeight: 1.65,
   fontSize: 13,
+};
+
+const rangeBrowsePanelStyle: React.CSSProperties = {
+  border: '1px solid #e5e7eb',
+  borderRadius: 14,
+  background: '#ffffff',
+  padding: '14px',
+};
+
+const rangeGroupTitleStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#6b7280',
+  fontWeight: 800,
+  marginBottom: 8,
 };
