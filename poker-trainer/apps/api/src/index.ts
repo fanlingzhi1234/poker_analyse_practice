@@ -265,9 +265,21 @@ async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
 
 export function createServer() {
   return http.createServer(async (req, res) => {
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'GET,POST,OPTIONS',
+      'access-control-allow-headers': 'Content-Type',
+    };
+
     try {
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, corsHeaders);
+        res.end();
+        return;
+      }
+
       if (req.method === 'GET' && req.url === '/health') {
-        res.writeHead(200, { 'content-type': 'application/json' });
+        res.writeHead(200, { ...corsHeaders, 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
         return;
       }
@@ -275,16 +287,16 @@ export function createServer() {
       if (req.method === 'POST' && req.url === '/api/analyze') {
         const payload = (await readJsonBody(req)) as AnalyzeRequest;
         const result = analyzeScenario(payload);
-        res.writeHead(200, { 'content-type': 'application/json' });
+        res.writeHead(200, { ...corsHeaders, 'content-type': 'application/json' });
         res.end(JSON.stringify(result));
         return;
       }
 
-      res.writeHead(404, { 'content-type': 'application/json' });
+      res.writeHead(404, { ...corsHeaders, 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: 'Not found' }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      res.writeHead(400, { 'content-type': 'application/json' });
+      res.writeHead(400, { ...corsHeaders, 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: message }));
     }
   });
