@@ -403,117 +403,120 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(320px, 420px) minmax(0, 1fr)',
-          gap: 18,
-          alignItems: 'start',
-        }}
-      >
+      <section style={{ display: 'grid', gap: 18, marginBottom: 18 }}>
         <div style={cardStyle}>
           <h2 style={sectionTitleStyle}>输入参数</h2>
 
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>点牌器</div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div>
-                <div style={pickerLabelStyle}>Hero Hand</div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <CardSlot value={heroPreview[0] ?? ''} label="H1" onClick={() => { setPickerTarget({ area: 'hero', index: 0 }); setPickerSuit(null); }} />
-                  <CardSlot value={heroPreview[1] ?? ''} label="H2" onClick={() => { setPickerTarget({ area: 'hero', index: 1 }); setPickerSuit(null); }} />
+          <div style={inputTopLayoutStyle}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>点牌器</div>
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div>
+                    <div style={pickerLabelStyle}>Hero Hand</div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <CardSlot value={heroPreview[0] ?? ''} label="H1" onClick={() => { setPickerTarget({ area: 'hero', index: 0 }); setPickerSuit(null); }} />
+                      <CardSlot value={heroPreview[1] ?? ''} label="H2" onClick={() => { setPickerTarget({ area: 'hero', index: 1 }); setPickerSuit(null); }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={pickerLabelStyle}>Board</div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {([0, 1, 2, 3, 4] as const).map((index) => (
+                        <CardSlot
+                          key={index}
+                          value={boardPreview[index] ?? ''}
+                          label={`B${index + 1}`}
+                          onClick={() => { setPickerTarget({ area: 'board', index }); setPickerSuit(null); }}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <div style={pickerLabelStyle}>Board</div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {([0, 1, 2, 3, 4] as const).map((index) => (
-                    <CardSlot
-                      key={index}
-                      value={boardPreview[index] ?? ''}
-                      label={`B${index + 1}`}
-                      onClick={() => { setPickerTarget({ area: 'board', index }); setPickerSuit(null); }}
-                    />
-                  ))}
-                </div>
+              <div style={inputFieldsGridStyle}>
+                <label style={labelStyle}>
+                  API Base URL
+                  <input style={inputStyle} value={apiBaseUrl} onChange={(e) => setApiBaseUrl(e.target.value)} />
+                </label>
+
+                <label style={labelStyle}>
+                  Hero Hand（文本 fallback）
+                  <input style={inputStyle} value={heroHandInput} onChange={(e) => setHeroHandInput(e.target.value)} placeholder="As Kd" />
+                </label>
+
+                <label style={labelStyle}>
+                  Board（文本 fallback）
+                  <input style={inputStyle} value={boardInput} onChange={(e) => setBoardInput(e.target.value)} placeholder="Qh Js 5d" />
+                </label>
+
+                <label style={labelStyle}>
+                  Range Preset
+                  <select style={inputStyle} value={rangePreset} onChange={(e) => setRangePreset(e.target.value as (typeof presetOptions)[number])}>
+                    {presetOptions.map((preset) => (
+                      <option key={preset} value={preset}>
+                        {preset}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={labelStyle}>
+                  Range Text（可选，填写后优先于 preset）
+                  <input style={inputStyle} value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="TT+,AJs+,KQo" />
+                </label>
               </div>
+
+              <small style={hintStyle}>Hero / Board 也可以直接手输，点牌器和文本输入会同步。</small>
+              <small style={hintStyle}>Range Text 支持：AA / AKs / AKo / TT+ / AJs+ / 76s-54s / 逗号组合</small>
+              <small style={hintStyle}>Board 支持 0 / 3 / 4 / 5 张公共牌；player count 当前仅记录，实际仍按单对手（2 人）计算。</small>
             </div>
+
+            <aside style={actionRailStyle}>
+              <div style={actionRailCardStyle}>
+                <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>运行参数</div>
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <label style={labelStyle}>
+                    Iterations
+                    <input style={inputStyle} value={iterations} onChange={(e) => setIterations(e.target.value)} />
+                  </label>
+
+                  <label style={labelStyle}>
+                    RNG Seed
+                    <input style={inputStyle} value={rngSeed} onChange={(e) => setRngSeed(e.target.value)} />
+                  </label>
+
+                  <label style={labelStyle}>
+                    Player Count
+                    <input style={inputStyle} value={playerCount} onChange={(e) => setPlayerCount(e.target.value)} />
+                  </label>
+                </div>
+
+                {!validation.isValid ? (
+                  <div style={{ ...noticeStyle, background: '#fff7e6', borderColor: '#ffd591', color: '#ad4e00' }}>
+                    <strong>输入还没准备好：</strong>
+                    <ul style={listStyle}>
+                      {validation.messages.map((message) => (
+                        <li key={message}>{message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div style={{ ...noticeStyle, background: '#f6ffed', borderColor: '#b7eb8f', color: '#237804' }}>
+                    输入格式看起来没问题，可以直接分析。
+                  </div>
+                )}
+
+                <button onClick={handleAnalyze} disabled={loading || !validation.isValid} style={buttonStyle}>
+                  {loading ? '分析中…' : '开始分析'}
+                </button>
+
+                {error ? <div style={{ ...noticeStyle, background: '#fff1f0', borderColor: '#ffccc7', color: '#a8071a' }}>{error}</div> : null}
+              </div>
+            </aside>
           </div>
-
-          <label style={labelStyle}>
-            API Base URL
-            <input style={inputStyle} value={apiBaseUrl} onChange={(e) => setApiBaseUrl(e.target.value)} />
-          </label>
-
-          <label style={labelStyle}>
-            Hero Hand（文本 fallback）
-            <input style={inputStyle} value={heroHandInput} onChange={(e) => setHeroHandInput(e.target.value)} placeholder="As Kd" />
-          </label>
-          <small style={hintStyle}>也可以直接手输，点牌器和文本输入会同步。</small>
-
-          <label style={labelStyle}>
-            Board（文本 fallback）
-            <input style={inputStyle} value={boardInput} onChange={(e) => setBoardInput(e.target.value)} placeholder="Qh Js 5d" />
-          </label>
-          <small style={hintStyle}>支持 0 / 3 / 4 / 5 张公共牌。</small>
-
-          <label style={labelStyle}>
-            Range Preset
-            <select style={inputStyle} value={rangePreset} onChange={(e) => setRangePreset(e.target.value as (typeof presetOptions)[number])}>
-              {presetOptions.map((preset) => (
-                <option key={preset} value={preset}>
-                  {preset}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={labelStyle}>
-            Range Text（可选，填写后优先于 preset）
-            <input style={inputStyle} value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="TT+,AJs+,KQo" />
-          </label>
-          <small style={hintStyle}>支持：AA / AKs / AKo / TT+ / AJs+ / 76s-54s / 逗号组合</small>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            <label style={labelStyle}>
-              Iterations
-              <input style={inputStyle} value={iterations} onChange={(e) => setIterations(e.target.value)} />
-            </label>
-
-            <label style={labelStyle}>
-              RNG Seed
-              <input style={inputStyle} value={rngSeed} onChange={(e) => setRngSeed(e.target.value)} />
-            </label>
-
-            <label style={labelStyle}>
-              Player Count
-              <input style={inputStyle} value={playerCount} onChange={(e) => setPlayerCount(e.target.value)} />
-            </label>
-          </div>
-
-          <small style={hintStyle}>当前后端会记录 player count，但实际仍按单对手（2 人）计算。</small>
-
-          {!validation.isValid ? (
-            <div style={{ ...noticeStyle, background: '#fff7e6', borderColor: '#ffd591', color: '#ad4e00' }}>
-              <strong>输入还没准备好：</strong>
-              <ul style={listStyle}>
-                {validation.messages.map((message) => (
-                  <li key={message}>{message}</li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <div style={{ ...noticeStyle, background: '#f6ffed', borderColor: '#b7eb8f', color: '#237804' }}>
-              输入格式看起来没问题，可以直接分析。
-            </div>
-          )}
-
-          <button onClick={handleAnalyze} disabled={loading || !validation.isValid} style={buttonStyle}>
-            {loading ? '分析中…' : '开始分析'}
-          </button>
-
-          {error ? <div style={{ ...noticeStyle, background: '#fff1f0', borderColor: '#ffccc7', color: '#a8071a' }}>{error}</div> : null}
         </div>
 
         <div style={{ display: 'grid', gap: 18 }}>
@@ -868,6 +871,34 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 16,
   padding: 18,
   boxShadow: '0 10px 30px rgba(15,23,42,0.05)',
+};
+
+const inputTopLayoutStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) 280px',
+  gap: 18,
+  alignItems: 'start',
+};
+
+const inputFieldsGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(220px, 1fr))',
+  gap: 12,
+};
+
+const actionRailStyle: React.CSSProperties = {
+  position: 'relative',
+};
+
+const actionRailCardStyle: React.CSSProperties = {
+  position: 'sticky',
+  top: 18,
+  background: '#f8fafc',
+  border: '1px solid #e5e7eb',
+  borderRadius: 14,
+  padding: 14,
+  display: 'grid',
+  gap: 12,
 };
 
 const heroResultCardStyle: React.CSSProperties = {
