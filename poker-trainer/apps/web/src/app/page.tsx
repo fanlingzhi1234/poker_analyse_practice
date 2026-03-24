@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type AnalyzeResponse = {
   assumptions: {
@@ -37,11 +37,21 @@ type AnalyzeResponse = {
   };
 };
 
+type RangePresetMeta = {
+  name: string;
+  label: string;
+  description: string;
+  width: '超宽' | '宽' | '中' | '紧';
+  category: '宽度类' | '牌型认知类' | '风格导向类';
+  representativeHands: string[];
+  trainingHint: string;
+};
+
 type PickerTarget =
   | { area: 'hero'; index: 0 | 1 }
   | { area: 'board'; index: 0 | 1 | 2 | 3 | 4 };
 
-const presetOptions = ['any-two', 'loose', 'standard', 'tight', 'premium'] as const;
+const presetOptions = ['any-two', 'loose', 'standard', 'tight', 'premium', 'pocket-pairs', 'broadway', 'suited-aces', 'suited-connectors'] as const;
 const validRanks = new Set(['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']);
 const validSuits = new Set(['s', 'h', 'd', 'c']);
 const rankOrder = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'] as const;
@@ -258,6 +268,7 @@ export default function HomePage() {
   const [boardInput, setBoardInput] = useState(exampleScenarios.default.boardInput);
   const [rangePreset, setRangePreset] = useState<(typeof presetOptions)[number]>(exampleScenarios.default.rangePreset);
   const [rangeText, setRangeText] = useState(exampleScenarios.default.rangeText);
+  const [rangePresets, setRangePresets] = useState<RangePresetMeta[]>([]);
   const [iterations, setIterations] = useState(exampleScenarios.default.iterations);
   const [playerCount, setPlayerCount] = useState(exampleScenarios.default.playerCount);
   const [rngSeed, setRngSeed] = useState(exampleScenarios.default.rngSeed);
@@ -280,6 +291,33 @@ export default function HomePage() {
   const usedCards = useMemo(
     () => [...validation.normalizedHero, ...validation.normalizedBoard].filter(isValidCardCode),
     [validation.normalizedHero, validation.normalizedBoard],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRangePresets() {
+      try {
+        const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/ranges/presets`);
+        const data = await response.json();
+        if (!response.ok) return;
+        if (!cancelled && Array.isArray(data.presets)) {
+          setRangePresets(data.presets);
+        }
+      } catch {
+        // ignore preset metadata fetch failures in UI layer
+      }
+    }
+
+    loadRangePresets();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl]);
+
+  const currentRangePreset = useMemo(
+    () => rangePresets.find((preset) => preset.name === rangePreset) ?? null,
+    [rangePresets, rangePreset],
   );
 
   function applyScenario(key: keyof typeof exampleScenarios) {
@@ -1376,6 +1414,51 @@ const insightCardStyle: React.CSSProperties = {
   padding: '12px 14px',
   borderRadius: 12,
   border: '1px solid',
+  lineHeight: 1.65,
+  fontSize: 14,
+};
+
+const rangeInfoCardStyle: React.CSSProperties = {
+  marginTop: 6,
+  marginBottom: 12,
+  padding: '14px 14px',
+  borderRadius: 14,
+  border: '1px solid #e5e7eb',
+  background: '#fbfdff',
+};
+
+const rangeInfoTitleStyle: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 800,
+  marginBottom: 4,
+};
+
+const rangeInfoSubtitleStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#6b7280',
+};
+
+const rangeBadgeStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '6px 10px',
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const rangeDescriptionStyle: React.CSSProperties = {
+  lineHeight: 1.7,
+  color: '#374151',
+  fontSize: 14,
+};
+
+const rangeHintStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#eff6ff',
+  border: '1px solid #bfdbfe',
+  color: '#1d4ed8',
   lineHeight: 1.65,
   fontSize: 14,
 };
