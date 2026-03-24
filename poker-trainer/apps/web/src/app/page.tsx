@@ -260,6 +260,10 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   const [pickerSuit, setPickerSuit] = useState<string | null>(null);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackSubject, setFeedbackSubject] = useState('Poker Trainer 反馈');
+  const [feedbackMessage, setFeedbackMessage] = useState('我想反馈的问题/建议：');
 
   const heroPreview = useMemo(() => parseCardList(heroHandInput), [heroHandInput]);
   const boardPreview = useMemo(() => parseCardList(boardInput), [boardInput]);
@@ -367,6 +371,10 @@ export default function HomePage() {
   return (
     <main style={{ padding: 24, fontFamily: 'Inter, Arial, sans-serif', maxWidth: 1160, margin: '0 auto' }}>
       <div style={heroHeaderStyle}>
+        <div style={heroHeaderTopBarStyle}>
+          <button type="button" style={heroTopButtonStyle} onClick={() => setShowHelpModal(true)}>说明</button>
+          <button type="button" style={heroTopButtonStyle} onClick={() => setShowFeedbackModal(true)}>反馈</button>
+        </div>
         <div>
           <div style={eyebrowStyle}>Single-opponent training MVP</div>
           <h1 style={{ marginBottom: 8, marginTop: 0 }}>Poker Trainer</h1>
@@ -612,6 +620,97 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+
+      {showHelpModal ? (
+        <div style={modalOverlayStyle} onClick={() => setShowHelpModal(false)}>
+          <div style={infoModalCardStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={modalHeaderRowStyle}>
+              <div>
+                <div style={modalTitleStyle}>说明</div>
+                <div style={modalSubtitleStyle}>这个服务是什么、适合怎么用</div>
+              </div>
+              <button type="button" style={secondaryButtonStyle} onClick={() => setShowHelpModal(false)}>关闭</button>
+            </div>
+
+            <div style={modalContentBlockStyle}>
+              <h3 style={modalSectionTitleStyle}>背景</h3>
+              <p style={modalParagraphStyle}>
+                这是一个面向 <strong>单对手德州扑克训练</strong> 的分析工具，用来帮助你快速理解一手牌在某个牌面和对手范围下的大致胜率、当前牌力、听牌结构，以及一个教学型建议。
+              </p>
+            </div>
+
+            <div style={modalContentBlockStyle}>
+              <h3 style={modalSectionTitleStyle}>当前定位</h3>
+              <ul style={modalListStyle}>
+                <li>聚焦 <strong>单对手</strong> 场景</li>
+                <li>适合做复盘、训练和牌感校准</li>
+                <li>建议是 <strong>教学型 heuristic</strong>，不是 GTO / solver 结论</li>
+                <li>胜率来自 Monte Carlo 估算，不是穷举精确解</li>
+              </ul>
+            </div>
+
+            <div style={modalContentBlockStyle}>
+              <h3 style={modalSectionTitleStyle}>使用方法</h3>
+              <ol style={modalListStyle}>
+                <li>先用左侧点牌器选择 Hero 手牌和公共牌</li>
+                <li>选择一个 Range Preset，或填写自定义 Range Text</li>
+                <li>点击“开始分析”</li>
+                <li>优先看右侧“分析结论”，再看下面的详细结果卡片</li>
+              </ol>
+            </div>
+
+            <div style={modalContentBlockStyle}>
+              <h3 style={modalSectionTitleStyle}>怎么看结果</h3>
+              <ul style={modalListStyle}>
+                <li><strong>Equity</strong>：在当前假设下，你大致能分到多少权益</li>
+                <li><strong>Made Hand</strong>：当前是否已经成手</li>
+                <li><strong>听牌标签</strong>：说明后续改良空间</li>
+                <li><strong>建议原因</strong>：解释当前为什么更偏向 raise / call / check / fold</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showFeedbackModal ? (
+        <div style={modalOverlayStyle} onClick={() => setShowFeedbackModal(false)}>
+          <div style={infoModalCardStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={modalHeaderRowStyle}>
+              <div>
+                <div style={modalTitleStyle}>反馈</div>
+                <div style={modalSubtitleStyle}>会通过你的默认邮件客户端发送</div>
+              </div>
+              <button type="button" style={secondaryButtonStyle} onClick={() => setShowFeedbackModal(false)}>关闭</button>
+            </div>
+
+            <label style={labelStyle}>
+              收件人
+              <input style={inputStyle} value="cq.fanlingzhi@gmail.com" readOnly />
+            </label>
+
+            <label style={labelStyle}>
+              主题
+              <input style={inputStyle} value={feedbackSubject} onChange={(e) => setFeedbackSubject(e.target.value)} />
+            </label>
+
+            <label style={labelStyle}>
+              内容
+              <textarea style={textareaStyle} value={feedbackMessage} onChange={(e) => setFeedbackMessage(e.target.value)} />
+            </label>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" style={secondaryButtonStyle} onClick={() => setShowFeedbackModal(false)}>取消</button>
+              <a
+                href={`mailto:cq.fanlingzhi@gmail.com?subject=${encodeURIComponent(feedbackSubject)}&body=${encodeURIComponent(feedbackMessage)}`}
+                style={primaryLinkButtonStyle}
+              >
+                打开邮件客户端发送
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {pickerTarget ? (
         <div style={modalOverlayStyle} onClick={() => { setPickerTarget(null); setPickerSuit(null); }}>
@@ -1080,4 +1179,101 @@ const rankButtonStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   gap: 2,
+};
+
+const heroHeaderTopBarStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 10,
+  marginBottom: 18,
+};
+
+const heroTopButtonStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  borderRadius: 999,
+  border: '1px solid rgba(255,255,255,0.22)',
+  background: 'rgba(255,255,255,0.10)',
+  color: '#fff',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 700,
+};
+
+const infoModalCardStyle: React.CSSProperties = {
+  width: 'min(760px, 100%)',
+  maxHeight: '90vh',
+  overflow: 'auto',
+  background: '#fff',
+  borderRadius: 16,
+  padding: 20,
+  boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
+};
+
+const modalHeaderRowStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  marginBottom: 18,
+  flexWrap: 'wrap',
+};
+
+const modalTitleStyle: React.CSSProperties = {
+  fontSize: 22,
+  fontWeight: 900,
+  marginBottom: 4,
+};
+
+const modalSubtitleStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: '#6b7280',
+};
+
+const modalContentBlockStyle: React.CSSProperties = {
+  marginBottom: 18,
+};
+
+const modalSectionTitleStyle: React.CSSProperties = {
+  fontSize: 16,
+  fontWeight: 800,
+  margin: '0 0 8px 0',
+};
+
+const modalParagraphStyle: React.CSSProperties = {
+  margin: 0,
+  lineHeight: 1.7,
+  color: '#374151',
+};
+
+const modalListStyle: React.CSSProperties = {
+  margin: 0,
+  paddingLeft: 18,
+  lineHeight: 1.8,
+  color: '#374151',
+};
+
+const textareaStyle: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  minHeight: 160,
+  marginTop: 6,
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #d9d9d9',
+  fontSize: 14,
+  boxSizing: 'border-box',
+  resize: 'vertical',
+  fontFamily: 'inherit',
+};
+
+const primaryLinkButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 14px',
+  borderRadius: 10,
+  background: '#111827',
+  color: '#fff',
+  textDecoration: 'none',
+  fontWeight: 700,
 };
