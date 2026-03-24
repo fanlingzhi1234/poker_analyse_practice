@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@poker/shared-types": ["packages/shared-types/src"],
+      "@poker/poker-core": ["packages/poker-core/src"],
+      "@poker/range-parser": ["packages/range-parser/src"],
+      "@poker/rule-engine": ["packages/rule-engine/src"]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@poker/shared-types",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "echo 'lint placeholder: shared-types'",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "echo 'test placeholder: shared-types'"
+  }
+}
