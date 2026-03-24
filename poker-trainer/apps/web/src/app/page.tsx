@@ -65,6 +65,8 @@ type PickerTarget =
   | { area: 'hero'; index: 0 | 1 }
   | { area: 'board'; index: 0 | 1 | 2 | 3 | 4 };
 
+type AccordionKey = 'draws' | 'explanation' | 'distribution' | 'compare' | 'assumptions';
+
 const presetOptions = ['any-two', 'loose', 'standard', 'tight', 'premium', 'pocket-pairs', 'broadway', 'suited-aces', 'suited-connectors', 'suited-one-gappers', 'big-cards', 'suited-hands', 'value-heavy', 'speculative'] as const;
 const validRanks = new Set(['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']);
 const validSuits = new Set(['s', 'h', 'd', 'c']);
@@ -147,10 +149,10 @@ function actionLabel(action: AnalyzeResponse['recommendation']['action']): strin
 }
 
 function getActionTheme(action: AnalyzeResponse['recommendation']['action']) {
-  if (action === 'raise') return { bg: 'linear-gradient(135deg, #dcfce7, #bbf7d0)', fg: '#166534', pill: '#166534' };
-  if (action === 'call') return { bg: 'linear-gradient(135deg, #dbeafe, #bfdbfe)', fg: '#1d4ed8', pill: '#1d4ed8' };
-  if (action === 'check') return { bg: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)', fg: '#374151', pill: '#374151' };
-  return { bg: 'linear-gradient(135deg, #fee2e2, #fecaca)', fg: '#991b1b', pill: '#991b1b' };
+  if (action === 'raise') return { bg: 'linear-gradient(135deg, rgba(187,247,208,0.95), rgba(220,252,231,0.85))', fg: '#166534', pill: '#166534' };
+  if (action === 'call') return { bg: 'linear-gradient(135deg, rgba(191,219,254,0.95), rgba(219,234,254,0.85))', fg: '#1d4ed8', pill: '#1d4ed8' };
+  if (action === 'check') return { bg: 'linear-gradient(135deg, rgba(229,231,235,0.95), rgba(243,244,246,0.85))', fg: '#374151', pill: '#374151' };
+  return { bg: 'linear-gradient(135deg, rgba(254,202,202,0.95), rgba(254,226,226,0.85))', fg: '#991b1b', pill: '#991b1b' };
 }
 
 function getEquityTone(equity: number): { label: string; color: string; bg: string } {
@@ -217,21 +219,10 @@ function getValidationState(heroCards: string[], boardCards: string[]) {
 
   const messages: string[] = [];
 
-  if (normalizedHero.length !== 2) {
-    messages.push('Hero Hand 必须正好 2 张牌。');
-  }
-
-  if (![0, 3, 4, 5].includes(normalizedBoard.length)) {
-    messages.push('Board 只能是 0 / 3 / 4 / 5 张牌。');
-  }
-
-  if (invalidCards.length > 0) {
-    messages.push(`存在非法牌面编码：${Array.from(new Set(invalidCards)).join(', ')}`);
-  }
-
-  if (duplicateCards.length > 0) {
-    messages.push(`存在重复牌：${Array.from(new Set(duplicateCards)).join(', ')}`);
-  }
+  if (normalizedHero.length !== 2) messages.push('Hero Hand 必须正好 2 张牌。');
+  if (![0, 3, 4, 5].includes(normalizedBoard.length)) messages.push('Board 只能是 0 / 3 / 4 / 5 张牌。');
+  if (invalidCards.length > 0) messages.push(`存在非法牌面编码：${Array.from(new Set(invalidCards)).join(', ')}`);
+  if (duplicateCards.length > 0) messages.push(`存在重复牌：${Array.from(new Set(duplicateCards)).join(', ')}`);
 
   return {
     isValid: messages.length === 0,
@@ -242,15 +233,9 @@ function getValidationState(heroCards: string[], boardCards: string[]) {
 }
 
 function getSummaryLine(result: AnalyzeResponse): string {
-  if (result.hand.madeHand === 'high-card' && result.hand.draws.length === 0) {
-    return '当前还没成手，而且没有明显听牌，偏向谨慎处理。';
-  }
-  if (result.hand.draws.includes('combo-draw')) {
-    return '虽然未必已经很强，但组合听牌让后续改良空间明显变大。';
-  }
-  if (result.hand.madeHand !== 'high-card') {
-    return `当前已经形成${getMadeHandLabel(result.hand.madeHand)}，不是纯空气牌。`;
-  }
+  if (result.hand.madeHand === 'high-card' && result.hand.draws.length === 0) return '当前还没成手，而且没有明显听牌，偏向谨慎处理。';
+  if (result.hand.draws.includes('combo-draw')) return '虽然未必已经很强，但组合听牌让后续改良空间明显变大。';
+  if (result.hand.madeHand !== 'high-card') return `当前已经形成${getMadeHandLabel(result.hand.madeHand)}，不是纯空气牌。`;
   return '当前主要价值来自听牌结构和后续街道的改良机会。';
 }
 
@@ -274,12 +259,39 @@ function CardSlot({ value, label, onClick }: { value: string; label: string; onC
   );
 }
 
-function ResultCard({ title, children, accent }: { title: string; children: React.ReactNode; accent?: string }) {
+function MetricBubble({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ ...resultCardStyle, borderTop: accent ? `3px solid ${accent}` : '3px solid transparent' }}>
-      <h3 style={resultCardTitleStyle}>{title}</h3>
-      {children}
+    <div style={metricBubbleStyle}>
+      <div style={metricBubbleLabelStyle}>{label}</div>
+      <div style={metricBubbleValueStyle}>{value}</div>
     </div>
+  );
+}
+
+function AccordionSection({
+  title,
+  subtitle,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section style={accordionCardStyle}>
+      <button type="button" onClick={onToggle} style={accordionHeaderStyle}>
+        <div>
+          <div style={accordionTitleStyle}>{title}</div>
+          {subtitle ? <div style={accordionSubtitleStyle}>{subtitle}</div> : null}
+        </div>
+        <div style={accordionChevronStyle}>{open ? '－' : '＋'}</div>
+      </button>
+      {open ? <div style={accordionBodyStyle}>{children}</div> : null}
+    </section>
   );
 }
 
@@ -309,68 +321,46 @@ export default function HomePage() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackSubject, setFeedbackSubject] = useState('Poker Trainer 反馈');
   const [feedbackMessage, setFeedbackMessage] = useState('我想反馈的问题/建议：');
+  const [openSection, setOpenSection] = useState<AccordionKey>('explanation');
+  const [showLowFreqSettings, setShowLowFreqSettings] = useState(false);
+  const [showMoreRanges, setShowMoreRanges] = useState(false);
 
   const heroPreview = useMemo(() => parseCardList(heroHandInput), [heroHandInput]);
   const boardPreview = useMemo(() => parseCardList(boardInput), [boardInput]);
   const validation = useMemo(() => getValidationState(heroPreview, boardPreview), [heroPreview, boardPreview]);
   const resultTone = result ? getEquityTone(result.equity.equity) : null;
   const actionTheme = result ? getActionTheme(result.recommendation.action) : null;
-  const usedCards = useMemo(
-    () => [...validation.normalizedHero, ...validation.normalizedBoard].filter(isValidCardCode),
-    [validation.normalizedHero, validation.normalizedBoard],
-  );
+  const usedCards = useMemo(() => [...validation.normalizedHero, ...validation.normalizedBoard].filter(isValidCardCode), [validation.normalizedHero, validation.normalizedBoard]);
 
   useEffect(() => {
     let cancelled = false;
-
     async function loadRangePresets() {
       try {
         const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/ranges/presets`);
         const data = await response.json();
         if (!response.ok) return;
-        if (!cancelled && Array.isArray(data.presets)) {
-          setRangePresets(data.presets);
-        }
+        if (!cancelled && Array.isArray(data.presets)) setRangePresets(data.presets);
       } catch {
-        // ignore preset metadata fetch failures in UI layer
+        // ignore
       }
     }
-
     loadRangePresets();
     return () => {
       cancelled = true;
     };
   }, [apiBaseUrl]);
 
-  const currentRangePreset = useMemo(
-    () => rangePresets.find((preset) => preset.name === rangePreset) ?? null,
-    [rangePresets, rangePreset],
-  );
-
-  const quickRangePresets = useMemo(
-    () => rangePresets.filter((preset) => ['any-two', 'standard', 'tight', 'premium', 'broadway', 'pocket-pairs', 'suited-aces', 'suited-connectors'].includes(preset.name)),
-    [rangePresets],
-  );
+  const currentRangePreset = useMemo(() => rangePresets.find((preset) => preset.name === rangePreset) ?? null, [rangePresets, rangePreset]);
+  const quickRangePresets = useMemo(() => rangePresets.filter((preset) => ['any-two', 'standard', 'tight', 'premium', 'broadway', 'pocket-pairs', 'suited-aces', 'suited-connectors'].includes(preset.name)), [rangePresets]);
 
   const groupedRangePresets = useMemo(() => {
-    const groups = {
-      宽度类: [] as RangePresetMeta[],
-      牌型认知类: [] as RangePresetMeta[],
-      风格导向类: [] as RangePresetMeta[],
-    };
-
-    for (const preset of rangePresets) {
-      groups[preset.category].push(preset);
-    }
-
+    const groups = { 宽度类: [] as RangePresetMeta[], 牌型认知类: [] as RangePresetMeta[], 风格导向类: [] as RangePresetMeta[] };
+    for (const preset of rangePresets) groups[preset.category].push(preset);
     return groups;
   }, [rangePresets]);
 
   const comparePresetNames = ['standard', 'tight', 'premium', 'broadway', 'pocket-pairs'];
-  const comparePresetMetas = useMemo(
-    () => rangePresets.filter((preset) => comparePresetNames.includes(preset.name)),
-    [rangePresets],
-  );
+  const comparePresetMetas = useMemo(() => rangePresets.filter((preset) => comparePresetNames.includes(preset.name)), [rangePresets]);
 
   const filterRangeText = useMemo(() => {
     const tokens: string[] = [];
@@ -383,6 +373,10 @@ export default function HomePage() {
   }, [filterPocketPairs, filterBroadway, filterSuited, filterConnectors, filterAces]);
 
   const usingFilterRange = Boolean(filterRangeText);
+  const topThreeDistribution = useMemo(
+    () => (result ? getDistributionEntries(result.futureHandDistribution.distribution).slice(0, 3) : []),
+    [result],
+  );
 
   function applyScenario(key: keyof typeof exampleScenarios) {
     const scenario = exampleScenarios[key];
@@ -398,6 +392,7 @@ export default function HomePage() {
     setError(null);
     setPickerTarget(null);
     setPickerSuit(null);
+    setOpenSection('explanation');
   }
 
   function clearSlot(target: PickerTarget) {
@@ -407,7 +402,6 @@ export default function HomePage() {
       setHeroHandInput(cardListToInput(next));
       return;
     }
-
     const next = [...boardPreview];
     next[target.index] = '';
     setBoardInput(cardListToInput(next.filter(Boolean)));
@@ -415,7 +409,6 @@ export default function HomePage() {
 
   function applyCardToTarget(card: string) {
     if (!pickerTarget) return;
-
     if (pickerTarget.area === 'hero') {
       const next = [heroPreview[0] ?? '', heroPreview[1] ?? ''];
       next[pickerTarget.index] = card;
@@ -425,7 +418,6 @@ export default function HomePage() {
       next[pickerTarget.index] = card;
       setBoardInput(cardListToInput(next.filter(Boolean)));
     }
-
     setPickerTarget(null);
     setPickerSuit(null);
   }
@@ -433,6 +425,34 @@ export default function HomePage() {
   function getPickerTargetLabel(target: PickerTarget | null) {
     if (!target) return '';
     return target.area === 'hero' ? `Hero 第 ${target.index + 1} 张` : `Board 第 ${target.index + 1} 张`;
+  }
+
+  function handleAccordionToggle(key: AccordionKey) {
+    setOpenSection((current) => (current === key ? current : key));
+  }
+
+  function handleResetToFlop() {
+    const preservedHero = [heroPreview[0] ?? '', heroPreview[1] ?? ''].filter(Boolean);
+    const preservedFlop = [boardPreview[0] ?? '', boardPreview[1] ?? '', boardPreview[2] ?? ''].filter(Boolean);
+    setHeroHandInput(cardListToInput(preservedHero));
+    setBoardInput(cardListToInput(preservedFlop));
+    setRangePreset('standard');
+    setRangeText('');
+    setFilterPocketPairs(false);
+    setFilterBroadway(false);
+    setFilterSuited(false);
+    setFilterConnectors(false);
+    setFilterAces(false);
+    setShowAdvancedRange(false);
+    setShowMoreRanges(false);
+    setShowLowFreqSettings(false);
+    setIterations(exampleScenarios.default.iterations);
+    setPlayerCount(exampleScenarios.default.playerCount);
+    setRngSeed(exampleScenarios.default.rngSeed);
+    setResult(null);
+    setCompareResults([]);
+    setError(null);
+    setOpenSection('explanation');
   }
 
   async function handleAnalyze() {
@@ -458,17 +478,12 @@ export default function HomePage() {
 
       const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/analyze`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error ?? 'Analyze request failed');
-      }
-
+      if (!response.ok) throw new Error(data.error ?? 'Analyze request failed');
       setResult(data as AnalyzeResponse);
 
       if (!filterRangeText && !rangeText.trim()) {
@@ -488,9 +503,7 @@ export default function HomePage() {
               body: JSON.stringify({ ...comparePayloadBase, rangePreset: preset.name }),
             });
             const json = await resp.json();
-            if (!resp.ok) {
-              throw new Error(json.error ?? `Compare request failed for ${preset.label}`);
-            }
+            if (!resp.ok) throw new Error(json.error ?? `Compare request failed for ${preset.label}`);
             return {
               presetName: preset.name,
               label: preset.label,
@@ -501,7 +514,6 @@ export default function HomePage() {
             } as CompareResultItem;
           }),
         );
-
         setCompareResults(compareResponses.sort((a, b) => b.equity - a.equity));
       } else {
         setCompareResults([]);
@@ -515,42 +527,82 @@ export default function HomePage() {
     }
   }
 
-  return (
-    <main style={{ padding: 24, fontFamily: 'Inter, Arial, sans-serif', maxWidth: 1160, margin: '0 auto' }}>
-      <div style={heroHeaderStyle}>
-        <div style={heroHeaderTopBarStyle}>
-          <button type="button" style={heroTopButtonStyle} onClick={() => setShowHelpModal(true)}>说明</button>
-          <button type="button" style={heroTopButtonStyle} onClick={() => setShowFeedbackModal(true)}>反馈</button>
-        </div>
+  const rangeSourceCard = usingFilterRange ? (
+    <div style={rangeInfoCardStyle}>
+      <div style={rangeInfoTitleStyle}>分类筛选器生成范围</div>
+      <div style={rangeInfoSubtitleStyle}>当前分析使用的是筛选器拼出的范围文本，会覆盖 preset。</div>
+      <div style={rangeCodeBlockStyle}><code>{filterRangeText}</code></div>
+    </div>
+  ) : rangeText.trim() ? (
+    <div style={rangeInfoCardStyle}>
+      <div style={rangeInfoTitleStyle}>高级 Range Text</div>
+      <div style={rangeInfoSubtitleStyle}>当前分析优先使用手工输入的范围文本。</div>
+      <div style={rangeCodeBlockStyle}><code>{rangeText.trim()}</code></div>
+    </div>
+  ) : currentRangePreset ? (
+    <div style={rangeInfoCardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div>
-          <div style={eyebrowStyle}>Single-opponent training MVP</div>
-          <h1 style={{ marginBottom: 8, marginTop: 0 }}>Poker Trainer</h1>
-          <p style={{ color: '#dbe4ff', marginTop: 0, lineHeight: 1.7, maxWidth: 760 }}>
-            输入手牌、公牌和对手范围后，页面会给出 <strong>胜率、当前牌力、听牌结构与教学型建议</strong>。
-            当前版本聚焦 <strong>单对手分析</strong>，先把训练体验做顺手、做稳。
-          </p>
+          <div style={rangeInfoTitleStyle}>{currentRangePreset.label}</div>
+          <div style={rangeInfoSubtitleStyle}>{currentRangePreset.description}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ ...softBadgeStyle, background: '#eef2ff', color: '#4338ca' }}>{currentRangePreset.width}</span>
+          <span style={{ ...softBadgeStyle, background: '#f8fafc', color: '#475569' }}>{currentRangePreset.category}</span>
         </div>
       </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+        {currentRangePreset.representativeHands.map((hand) => (
+          <span key={hand} style={{ ...softBadgeStyle, background: '#ffffff', color: '#111827' }}>{hand}</span>
+        ))}
+      </div>
+      <div style={rangeHintLightStyle}><strong>训练提示：</strong>{currentRangePreset.trainingHint}</div>
+    </div>
+  ) : null;
 
-      <section style={{ ...cardStyle, marginBottom: 16 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          <strong>快速示例：</strong>
-          {Object.entries(exampleScenarios).map(([key, item]) => (
-            <button key={key} onClick={() => applyScenario(key as keyof typeof exampleScenarios)} style={chipButtonStyle}>
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </section>
+  return (
+    <main style={pageStyle}>
+      <div style={orbAStyle} />
+      <div style={orbBStyle} />
+      <div style={shellStyle}>
+        <header style={heroHeaderStyle}>
+          <div style={heroHeaderTopBarStyle}>
+            <div>
+              <div style={eyebrowStyle}>单挑场景 · 快速训练</div>
+              <h1 style={heroTitleStyle}>德州扑克单挑训练助手</h1>
+              <p style={heroSubtitleStyle}>选好手牌、公共牌和对手范围，快速看到建议、胜率、当前牌型和关键记忆点。</p>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" style={ghostHeaderButtonStyle} onClick={() => setShowHelpModal(true)}>说明</button>
+              <button type="button" style={ghostHeaderButtonStyle} onClick={() => setShowFeedbackModal(true)}>反馈</button>
+            </div>
+          </div>
 
-      <section style={{ display: 'grid', gap: 18, marginBottom: 18 }}>
-        <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>输入参数</h2>
+        </header>
 
-          <div style={inputTopLayoutStyle}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontWeight: 700, marginBottom: 8 }}>点牌器</div>
+        <section style={workbenchStyle}>
+          <aside style={leftPanelStyle}>
+            <div style={glassCardStyle}>
+              <div style={panelHeaderStyle}>
+                <div>
+                  <div style={panelEyebrowStyle}>Step 1</div>
+                  <h2 style={panelTitleStyle}>输入工作台</h2>
+                </div>
+                <div style={panelHintStyle}>固定显示</div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <div style={stepTopRowStyle}>
+                  <div style={subSectionTitleStyle}>点牌器</div>
+                  <div style={scenarioInlineStyle}>
+                    <span style={scenarioLabelStyle}>快速示例</span>
+                    {Object.entries(exampleScenarios).map(([key, item]) => (
+                      <button key={key} onClick={() => applyScenario(key as keyof typeof exampleScenarios)} style={miniScenarioButtonStyle}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gap: 12 }}>
                   <div>
                     <div style={pickerLabelStyle}>Hero Hand</div>
@@ -559,96 +611,90 @@ export default function HomePage() {
                       <CardSlot value={heroPreview[1] ?? ''} label="H2" onClick={() => { setPickerTarget({ area: 'hero', index: 1 }); setPickerSuit(null); }} />
                     </div>
                   </div>
-
                   <div>
-                    <div style={pickerLabelStyle}>Board</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <div style={pickerLabelStyle}>Board</div>
+                      <button type="button" onClick={handleResetToFlop} style={miniGhostButtonStyle}>一键重置</button>
+                    </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       {([0, 1, 2, 3, 4] as const).map((index) => (
-                        <CardSlot
-                          key={index}
-                          value={boardPreview[index] ?? ''}
-                          label={`B${index + 1}`}
-                          onClick={() => { setPickerTarget({ area: 'board', index }); setPickerSuit(null); }}
-                        />
+                        <div key={index} style={{ display: 'grid', gap: 6, justifyItems: 'center' }}>
+                          <CardSlot value={boardPreview[index] ?? ''} label={`B${index + 1}`} onClick={() => { setPickerTarget({ area: 'board', index }); setPickerSuit(null); }} />
+                          {(index === 3 || index === 4) && boardPreview[index] ? (
+                            <button type="button" onClick={() => clearSlot({ area: 'board', index })} style={miniGhostButtonStyle}>
+                              清除
+                            </button>
+                          ) : (
+                            <div style={{ height: 30 }} />
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div style={inputFieldsGridStyle}>
-                <label style={labelStyle}>
-                  API Base URL
-                  <input style={inputStyle} value={apiBaseUrl} onChange={(e) => setApiBaseUrl(e.target.value)} />
-                </label>
-
-                <label style={labelStyle}>
-                  Hero Hand（文本 fallback）
-                  <input style={inputStyle} value={heroHandInput} onChange={(e) => setHeroHandInput(e.target.value)} placeholder="As Kd" />
-                </label>
-
-                <label style={labelStyle}>
-                  Board（文本 fallback）
-                  <input style={inputStyle} value={boardInput} onChange={(e) => setBoardInput(e.target.value)} placeholder="Qh Js 5d" />
-                </label>
-
-                <div style={labelStyle}>
-                  <div style={{ marginBottom: 8 }}>快速范围</div>
-                  <div style={quickPresetWrapStyle}>
-                    {quickRangePresets.length > 0
-                      ? quickRangePresets.map((preset) => {
-                          const active = !rangeText.trim() && rangePreset === preset.name;
-                          return (
-                            <button
-                              key={preset.name}
-                              type="button"
-                              onClick={() => {
-                                setRangePreset(preset.name as (typeof presetOptions)[number]);
-                                setRangeText('');
-                                setFilterPocketPairs(false);
-                                setFilterBroadway(false);
-                                setFilterSuited(false);
-                                setFilterConnectors(false);
-                                setFilterAces(false);
-                              }}
-                              style={{
-                                ...quickPresetChipStyle,
-                                background: active ? '#111827' : '#fff',
-                                color: active ? '#fff' : '#111827',
-                                borderColor: active ? '#111827' : '#d1d5db',
-                              }}
-                            >
-                              {preset.label}
-                            </button>
-                          );
-                        })
-                      : presetOptions.map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => {
-                              setRangePreset(preset);
-                              setRangeText('');
-                            }}
-                            style={{ ...quickPresetChipStyle, background: rangePreset === preset ? '#111827' : '#fff', color: rangePreset === preset ? '#fff' : '#111827', borderColor: rangePreset === preset ? '#111827' : '#d1d5db' }}
-                          >
-                            {preset}
-                          </button>
-                        ))}
-                  </div>
+              <div style={subSectionWrapStyle}>
+                <div style={subSectionTitleStyle}>常用范围</div>
+                <div style={chipWrapStyle}>
+                  {(quickRangePresets.length > 0 ? quickRangePresets.slice(0, 5) : presetOptions.slice(0, 5).map((name) => ({ name, label: name } as RangePresetMeta))).map((preset) => {
+                    const active = !rangeText.trim() && !usingFilterRange && rangePreset === preset.name;
+                    return (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => {
+                          setRangePreset(preset.name as (typeof presetOptions)[number]);
+                          setRangeText('');
+                          setFilterPocketPairs(false);
+                          setFilterBroadway(false);
+                          setFilterSuited(false);
+                          setFilterConnectors(false);
+                          setFilterAces(false);
+                        }}
+                        style={{ ...pillButtonStyle, ...(active ? pillButtonActiveStyle : {}) }}
+                        title={quickRangePresets.length > 0 && 'description' in preset ? `${preset.label}：${preset.description}\n训练提示：${preset.trainingHint}` : preset.label}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
 
-                <div style={rangeBrowsePanelStyle}>
-                  <div style={{ fontWeight: 700, marginBottom: 10 }}>更多范围（按分类）</div>
+              {!validation.isValid ? (
+                <div style={{ ...warningNoticeStyle, background: '#fff7ed', borderColor: '#fdba74', color: '#9a3412' }}>
+                  <strong>输入还没准备好：</strong>
+                  <ul style={listStyle}>
+                    {validation.messages.map((message) => <li key={message}>{message}</li>)}
+                  </ul>
+                </div>
+              ) : (
+                <div style={{ ...warningNoticeStyle, background: '#ecfdf5', borderColor: '#86efac', color: '#166534' }}>输入格式看起来没问题，可以直接分析。</div>
+              )}
 
-                  {rangePresets.length > 0 ? (
+              <div style={stickyActionWrapStyle}>
+                <button onClick={handleAnalyze} disabled={loading || !validation.isValid} style={primaryActionStyle}>
+                  {loading ? '分析中…' : '开始分析'}
+                </button>
+              </div>
+
+              {error ? <div style={{ ...warningNoticeStyle, background: '#fff1f2', borderColor: '#fda4af', color: '#be123c' }}>{error}</div> : null}
+
+              <div style={advancedRangePanelStyle}>
+                <button type="button" onClick={() => setShowMoreRanges((value) => !value)} style={advancedRangeToggleStyle}>
+                  <span>更多范围（按分类）</span>
+                  <span style={{ color: '#6b7280', fontSize: 12 }}>{showMoreRanges ? '收起' : '展开'}</span>
+                </button>
+                {showMoreRanges ? (
+                  <div style={advancedRangeBodyStyle}>
                     <div style={{ display: 'grid', gap: 12 }}>
                       {Object.entries(groupedRangePresets).map(([groupName, presets]) => (
                         <div key={groupName}>
                           <div style={rangeGroupTitleStyle}>{groupName}</div>
-                          <div style={quickPresetWrapStyle}>
+                          <div style={chipWrapStyle}>
                             {presets.map((preset) => {
-                              const active = !rangeText.trim() && rangePreset === preset.name;
+                              const active = !rangeText.trim() && !usingFilterRange && rangePreset === preset.name;
                               return (
                                 <button
                                   key={preset.name}
@@ -662,12 +708,7 @@ export default function HomePage() {
                                     setFilterConnectors(false);
                                     setFilterAces(false);
                                   }}
-                                  style={{
-                                    ...quickPresetChipStyle,
-                                    background: active ? '#111827' : '#fff',
-                                    color: active ? '#fff' : '#111827',
-                                    borderColor: active ? '#111827' : '#d1d5db',
-                                  }}
+                                  style={{ ...pillButtonStyle, ...(active ? pillButtonActiveStyle : {}) }}
                                 >
                                   {preset.label}
                                 </button>
@@ -677,320 +718,230 @@ export default function HomePage() {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <select style={inputStyle} value={rangePreset} onChange={(e) => { setRangePreset(e.target.value as (typeof presetOptions)[number]); setRangeText(''); }}>
-                      {presetOptions.map((preset) => (
-                        <option key={preset} value={preset}>
-                          {preset}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
+                  </div>
+                ) : null}
+              </div>
 
-                <div style={filterPanelStyle}>
-                  <div style={{ fontWeight: 700, marginBottom: 10 }}>分类筛选器</div>
-                  <div style={filterChipWrapStyle}>
-                    {[
-                      ['口袋对子', filterPocketPairs, setFilterPocketPairs],
-                      ['百老汇牌', filterBroadway, setFilterBroadway],
-                      ['同花牌', filterSuited, setFilterSuited],
-                      ['同花连张', filterConnectors, setFilterConnectors],
-                      ['A牌结构', filterAces, setFilterAces],
-                    ].map(([label, active, setter]) => (
-                      <button
-                        key={label as string}
-                        type="button"
-                        onClick={() => {
-                          (setter as React.Dispatch<React.SetStateAction<boolean>>)((value) => !value);
-                          setRangeText('');
-                        }}
-                        style={{
-                          ...filterChipStyle,
-                          background: active ? '#111827' : '#fff',
-                          color: active ? '#fff' : '#111827',
-                          borderColor: active ? '#111827' : '#d1d5db',
-                        }}
-                      >
-                        {label as string}
-                      </button>
+              <div style={subSectionWrapStyle}>
+                <div style={subSectionTitleStyle}>分类筛选器</div>
+                <div style={chipWrapStyle}>
+                  {[
+                    ['口袋对子', filterPocketPairs, setFilterPocketPairs],
+                    ['百老汇牌', filterBroadway, setFilterBroadway],
+                    ['同花牌', filterSuited, setFilterSuited],
+                    ['同花连张', filterConnectors, setFilterConnectors],
+                    ['A牌结构', filterAces, setFilterAces],
+                  ].map(([label, active, setter]) => (
+                    <button
+                      key={label as string}
+                      type="button"
+                      onClick={() => {
+                        (setter as React.Dispatch<React.SetStateAction<boolean>>)((value) => !value);
+                        setRangeText('');
+                      }}
+                      style={{ ...pillButtonStyle, ...(active ? pillButtonActiveStyle : {}) }}
+                    >
+                      {label as string}
+                    </button>
+                  ))}
+                </div>
+                <div style={helperTextStyle}>{usingFilterRange ? <>当前筛选生成：<code>{filterRangeText}</code></> : '未启用筛选器时，当前按 preset 或高级输入分析。'}</div>
+              </div>
+
+              <div style={advancedRangePanelStyle}>
+                <button type="button" onClick={() => setShowAdvancedRange((value) => !value)} style={advancedRangeToggleStyle}>
+                  <span>高级范围输入</span>
+                  <span style={{ color: '#6b7280', fontSize: 12 }}>{showAdvancedRange ? '收起' : '展开'}</span>
+                </button>
+                {showAdvancedRange ? (
+                  <div style={advancedRangeBodyStyle}>
+                    <label style={labelStyle}>
+                      Range Text（填写后优先于 preset）
+                      <input style={inputStyle} value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="TT+,AJs+,KQo" />
+                    </label>
+                    <div style={helperTextStyle}>示例：<code>TT+</code>、<code>AJs+</code>、<code>KQo</code>、<code>76s-54s</code></div>
+                  </div>
+                ) : null}
+              </div>
+
+              {rangeSourceCard}
+
+              <div style={advancedRangePanelStyle}>
+                <button type="button" onClick={() => setShowLowFreqSettings((value) => !value)} style={advancedRangeToggleStyle}>
+                  <span>低频设置与备用输入</span>
+                  <span style={{ color: '#6b7280', fontSize: 12 }}>{showLowFreqSettings ? '收起' : '展开'}</span>
+                </button>
+                {showLowFreqSettings ? (
+                  <div style={advancedRangeBodyStyle}>
+                    <div style={inputGroupStyle}>
+                      <label style={labelStyle}>
+                        API Base URL
+                        <input style={inputStyle} value={apiBaseUrl} onChange={(e) => setApiBaseUrl(e.target.value)} />
+                      </label>
+                      <label style={labelStyle}>
+                        Hero Hand（文本 fallback）
+                        <input style={inputStyle} value={heroHandInput} onChange={(e) => setHeroHandInput(e.target.value)} placeholder="As Kd" />
+                      </label>
+                      <label style={labelStyle}>
+                        Board（文本 fallback）
+                        <input style={inputStyle} value={boardInput} onChange={(e) => setBoardInput(e.target.value)} placeholder="Qh Js 5d" />
+                      </label>
+                      <label style={labelStyle}>
+                        Iterations
+                        <input style={inputStyle} value={iterations} onChange={(e) => setIterations(e.target.value)} />
+                      </label>
+                      <label style={labelStyle}>
+                        RNG Seed
+                        <input style={inputStyle} value={rngSeed} onChange={(e) => setRngSeed(e.target.value)} />
+                      </label>
+                      <label style={labelStyle}>
+                        Player Count（只读展示）
+                        <input style={{ ...inputStyle, background: 'rgba(248,250,252,0.8)', color: '#64748b' }} value={playerCount} readOnly />
+                      </label>
+                    </div>
+                    <div style={softNoticeStyle}>当前分析仍固定按 <strong>单对手（2 人）</strong> 计算；这里放的是低频设置和备用输入。</div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </aside>
+
+          <section style={rightPanelStyle}>
+            <div style={{ ...heroResultCardStyle, background: actionTheme?.bg ?? 'linear-gradient(135deg, rgba(255,255,255,0.86), rgba(238,242,255,0.78))', color: actionTheme?.fg ?? '#111827' }}>
+              <div style={panelHeaderStyle}>
+                <div>
+                  <div style={panelEyebrowStyle}>Step 2</div>
+                  <h2 style={panelTitleStyle}>核心结果</h2>
+                </div>
+                {result ? <div style={{ ...actionPillStyle, background: actionTheme?.pill }}>{actionLabel(result.recommendation.action)}</div> : <div style={panelHintStyle}>第一页固定显示</div>}
+              </div>
+
+              <div style={heroMainDecisionStyle}>{result ? actionLabel(result.recommendation.action) : '等待分析'}</div>
+              <div style={heroDecisionSubStyle}>
+                {result ? `${result.explanation.headline} 当前 equity ${pct(result.equity.equity)}，整体属于 ${resultTone?.label}。` : '先完成左侧输入，再点击开始分析。第一屏只保留最重要的结论。'}
+              </div>
+
+              <div style={memoryLineStyle}>
+                <strong>记忆点：</strong>{result ? getSummaryLine(result) : '分析后这里会给出一句便于记忆的训练摘要。'}
+              </div>
+
+              <div style={coreMetricsRowStyle}>
+                <MetricBubble label="行动建议" value={result ? actionLabel(result.recommendation.action) : '—'} />
+                <MetricBubble label="Equity" value={result ? pct(result.equity.equity) : '—'} />
+                <MetricBubble label="当前牌型" value={result ? getMadeHandLabel(result.hand.madeHand) : '—'} />
+                <MetricBubble label="一句记忆点" value={result ? getSummaryLine(result) : '—'} />
+              </div>
+
+              <div style={topThreeCardStyle}>
+                <div style={miniLabelStyle}>最可能的最终牌型（Top 3）</div>
+                {result ? (
+                  <div style={topThreeListStyle}>
+                    {topThreeDistribution.map(([category, value], index) => (
+                      <div key={category} style={topThreeItemStyle}>
+                        <div style={topThreeRankStyle}>#{index + 1}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={topThreeNameStyle}>{getMadeHandLabel(category)}</div>
+                          <div style={topThreeValueStyle}>{pct(value)}</div>
+                        </div>
+                      </div>
                     ))}
                   </div>
-                  <div style={filterSummaryStyle}>
-                    {usingFilterRange ? (<>当前筛选生成范围：<code>{filterRangeText}</code></>) : '未启用分类筛选器，当前仍按 preset 或高级输入进行分析。'}
-                  </div>
-                </div>
+                ) : (
+                  <div style={emptyTextStyle}>分析后这里会先展示最有可能出现的前三种最终牌型。</div>
+                )}
+              </div>
+            </div>
 
-                <div style={advancedRangePanelStyle}>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedRange((value) => !value)}
-                    style={advancedRangeToggleStyle}
-                  >
-                    <span>高级范围输入</span>
-                    <span style={{ color: '#6b7280', fontSize: 12 }}>{showAdvancedRange ? '收起' : '展开'}</span>
-                  </button>
-
-                  {showAdvancedRange ? (
-                    <div style={advancedRangeBodyStyle}>
-                      <label style={labelStyle}>
-                        Range Text（高级，可选；填写后优先于 preset）
-                        <input style={inputStyle} value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="TT+,AJs+,KQo" />
-                      </label>
-                      <div style={advancedRangeHintStyle}>
-                        适合熟悉德州扑克范围简写的用户。示例：<code>TT+</code>、<code>AJs+</code>、<code>KQo</code>、<code>76s-54s</code>
+            <div style={accordionStackStyle}>
+              <AccordionSection title="牌力与听牌" subtitle="查看当前 made hand、draws 与 notes" open={openSection === 'draws'} onToggle={() => handleAccordionToggle('draws')}>
+                {result ? (
+                  <div style={{ display: 'grid', gap: 14 }}>
+                    <div>
+                      <div style={miniLabelStyle}>当前牌型</div>
+                      <div style={madeHandBadgeStyle}>{getMadeHandLabel(result.hand.madeHand)}</div>
+                    </div>
+                    <div>
+                      <div style={miniLabelStyle}>听牌标签</div>
+                      <div style={tagWrapStyle}>
+                        {result.hand.draws.length > 0 ? result.hand.draws.map((draw) => <span key={draw} style={{ ...drawTagStyle, ...getDrawTagStyle(draw) }}>{getDrawLabel(draw)}</span>) : <span style={{ ...drawTagStyle, background: '#f3f4f6', color: '#6b7280' }}>无明显听牌</span>}
                       </div>
                     </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <small style={hintStyle}>Hero / Board 也可以直接手输，点牌器和文本输入会同步。</small>
-              <small style={hintStyle}>Range Text 支持：AA / AKs / AKo / TT+ / AJs+ / 76s-54s / 逗号组合</small>
-              <small style={hintStyle}>Board 支持 0 / 3 / 4 / 5 张公共牌；player count 当前仅记录，实际仍按单对手（2 人）计算。</small>
-            </div>
-
-            <aside style={actionRailStyle}>
-              <div style={actionRailCardStyle}>
-                <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>运行参数</div>
-                <div style={{ display: 'grid', gap: 12 }}>
-                  <label style={labelStyle}>
-                    Iterations
-                    <input style={inputStyle} value={iterations} onChange={(e) => setIterations(e.target.value)} />
-                  </label>
-
-                  <label style={labelStyle}>
-                    RNG Seed
-                    <input style={inputStyle} value={rngSeed} onChange={(e) => setRngSeed(e.target.value)} />
-                  </label>
-
-                  <label style={labelStyle}>
-                    Player Count
-                    <input style={inputStyle} value={playerCount} onChange={(e) => setPlayerCount(e.target.value)} />
-                  </label>
-                </div>
-
-                {!validation.isValid ? (
-                  <div style={{ ...noticeStyle, background: '#fff7e6', borderColor: '#ffd591', color: '#ad4e00' }}>
-                    <strong>输入还没准备好：</strong>
-                    <ul style={listStyle}>
-                      {validation.messages.map((message) => (
-                        <li key={message}>{message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <div style={{ ...noticeStyle, background: '#f6ffed', borderColor: '#b7eb8f', color: '#237804' }}>
-                    输入格式看起来没问题，可以直接分析。
-                  </div>
-                )}
-
-                <button onClick={handleAnalyze} disabled={loading || !validation.isValid} style={buttonStyle}>
-                  {loading ? '分析中…' : '开始分析'}
-                </button>
-
-                {error ? <div style={{ ...noticeStyle, background: '#fff1f0', borderColor: '#ffccc7', color: '#a8071a' }}>{error}</div> : null}
-              </div>
-            </aside>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gap: 18 }}>
-          <div style={{ ...heroResultCardStyle, background: actionTheme?.bg ?? 'linear-gradient(135deg, #f8fafc, #eef2ff)', color: actionTheme?.fg ?? '#111827' }}>
-            <div style={heroResultTopRowStyle}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 6 }}>结论先看</div>
-                <div style={{ fontSize: 30, fontWeight: 900, marginBottom: 8 }}>{result ? actionLabel(result.recommendation.action) : '等待分析'}</div>
-                <div style={{ fontSize: 15, lineHeight: 1.7, maxWidth: 720 }}>
-                  {result
-                    ? `${result.explanation.headline} 当前 equity ${pct(result.equity.equity)}，整体属于 ${resultTone?.label}。`
-                    : '先选择一手牌，再点击开始分析。这里会优先给出一句最重要的训练结论。'}
-                </div>
-              </div>
-              {result ? <div style={{ ...actionPillStyle, background: actionTheme?.pill }}>{actionLabel(result.recommendation.action)}</div> : null}
-            </div>
-
-            <div style={metricGridStyle}>
-              <div style={metricCardStrongStyle}>
-                <div style={metricLabelLightStyle}>Equity</div>
-                <div style={metricValueStrongStyle}>{result ? pct(result.equity.equity) : '—'}</div>
-              </div>
-              <div style={metricCardStrongStyle}>
-                <div style={metricLabelLightStyle}>Made Hand</div>
-                <div style={metricValueStrongStyle}>{result ? getMadeHandLabel(result.hand.madeHand) : '—'}</div>
-              </div>
-              <div style={metricCardStrongStyle}>
-                <div style={metricLabelLightStyle}>Confidence</div>
-                <div style={metricValueStrongStyle}>{result ? pct(result.recommendation.confidence) : '—'}</div>
-              </div>
-              <div style={metricCardStrongStyle}>
-                <div style={metricLabelLightStyle}>Samples</div>
-                <div style={metricValueStrongStyle}>{result ? result.equity.sampleCount.toLocaleString() : '—'}</div>
-              </div>
-            </div>
-          </div>
-
-          <div style={detailsGridStyle}>
-            <ResultCard title="胜率拆解" accent="#1d4ed8">
-              {result ? (
-                <>
-                  <div style={barGroupStyle}>
-                    <div style={barHeaderStyle}><span>Win</span><strong>{pct(result.equity.winRate)}</strong></div>
-                    <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(result.equity.winRate), background: '#22c55e' }} /></div>
-                  </div>
-                  <div style={barGroupStyle}>
-                    <div style={barHeaderStyle}><span>Tie</span><strong>{pct(result.equity.tieRate)}</strong></div>
-                    <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(result.equity.tieRate), background: '#94a3b8' }} /></div>
-                  </div>
-                  <div style={barGroupStyle}>
-                    <div style={barHeaderStyle}><span>Lose</span><strong>{pct(result.equity.loseRate)}</strong></div>
-                    <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(result.equity.loseRate), background: '#ef4444' }} /></div>
-                  </div>
-                </>
-              ) : (
-                <div style={emptyTextStyle}>分析后这里会显示 win / tie / lose 的可视化拆解。</div>
-              )}
-            </ResultCard>
-
-            <ResultCard title="牌力与听牌" accent="#7c3aed">
-              {result ? (
-                <>
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={miniLabelStyle}>当前牌型</div>
-                    <div style={madeHandBadgeStyle}>{getMadeHandLabel(result.hand.madeHand)}</div>
-                  </div>
-                  <div>
-                    <div style={miniLabelStyle}>听牌标签</div>
-                    <div style={tagWrapStyle}>
-                      {result.hand.draws.length > 0 ? (
-                        result.hand.draws.map((draw) => (
-                          <span key={draw} style={{ ...drawTagStyle, ...getDrawTagStyle(draw) }}>
-                            {getDrawLabel(draw)}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ ...drawTagStyle, background: '#f3f4f6', color: '#6b7280' }}>无明显听牌</span>
-                      )}
+                    <div>
+                      <div style={miniLabelStyle}>Notes</div>
+                      <div style={stackListStyle}>{result.hand.notes.map((note) => <div key={note} style={softListItemStyle}>{note}</div>)}</div>
                     </div>
                   </div>
-                </>
-              ) : (
-                <div style={emptyTextStyle}>分析后这里会显示 made hand 和听牌标签。</div>
-              )}
-            </ResultCard>
+                ) : <div style={emptyTextStyle}>分析后这里会显示 made hand、听牌与附加 notes。</div>}
+              </AccordionSection>
 
-            <ResultCard title="教练解释" accent="#ea580c">
-              {result ? (
-                <div style={{ display: 'grid', gap: 14 }}>
-                  <div>
-                    <div style={miniLabelStyle}>建议原因</div>
-                    <ul style={reasonListStyle}>
-                      {result.recommendation.reasons.map((reason) => (
-                        <li key={reason} style={reasonItemStyle}>{reason}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <div style={miniLabelStyle}>当前优势</div>
-                    <div style={insightWrapStyle}>
-                      {result.explanation.strengths.map((item) => (
-                        <div key={item} style={{ ...insightCardStyle, background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
-                          <strong style={{ display: 'block', marginBottom: 4 }}>优势</strong>
-                          <span>{item}</span>
-                        </div>
-                      ))}
+              <AccordionSection title="教练解释" subtitle="默认展开，保留训练价值" open={openSection === 'explanation'} onToggle={() => handleAccordionToggle('explanation')}>
+                {result ? (
+                  <div style={{ display: 'grid', gap: 14 }}>
+                    <div>
+                      <div style={miniLabelStyle}>建议原因</div>
+                      <div style={stackListStyle}>{result.recommendation.reasons.map((reason) => <div key={reason} style={softListItemStyle}>{reason}</div>)}</div>
+                    </div>
+                    <div>
+                      <div style={miniLabelStyle}>当前优势</div>
+                      <div style={stackListStyle}>{result.explanation.strengths.map((item) => <div key={item} style={{ ...softInsightStyle, background: '#ecfdf5', color: '#166534' }}>{item}</div>)}</div>
+                    </div>
+                    <div>
+                      <div style={miniLabelStyle}>当前风险</div>
+                      <div style={stackListStyle}>{result.explanation.risks.map((item) => <div key={item} style={{ ...softInsightStyle, background: '#fff1f2', color: '#be123c' }}>{item}</div>)}</div>
+                    </div>
+                    <div>
+                      <div style={miniLabelStyle}>训练重点</div>
+                      <div style={stackListStyle}>{result.explanation.focus.map((item) => <div key={item} style={{ ...softInsightStyle, background: '#eff6ff', color: '#1d4ed8' }}>{item}</div>)}</div>
                     </div>
                   </div>
+                ) : <div style={emptyTextStyle}>分析后这里会显示教练式解释。</div>}
+              </AccordionSection>
 
-                  <div>
-                    <div style={miniLabelStyle}>当前风险</div>
-                    <div style={insightWrapStyle}>
-                      {result.explanation.risks.map((item) => (
-                        <div key={item} style={{ ...insightCardStyle, background: '#fff1f2', borderColor: '#fecdd3', color: '#9f1239' }}>
-                          <strong style={{ display: 'block', marginBottom: 4 }}>风险</strong>
-                          <span>{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={miniLabelStyle}>训练重点</div>
-                    <div style={insightWrapStyle}>
-                      {result.explanation.focus.map((item) => (
-                        <div key={item} style={{ ...insightCardStyle, background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}>
-                          <strong style={{ display: 'block', marginBottom: 4 }}>重点</strong>
-                          <span>{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={emptyTextStyle}>分析后这里会显示更像教练口吻的解释，以及当前优势、风险和训练重点。</div>
-              )}
-            </ResultCard>
-
-            <ResultCard title="最终牌型分布" accent="#0f766e">
-              {result ? (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  <div style={miniLabelStyle}>基于当前 Hero 手牌和公共牌，模拟最终成牌分布</div>
-                  {getDistributionEntries(result.futureHandDistribution.distribution).map(([category, value]) => (
-                    <div key={category} style={barGroupStyle}>
-                      <div style={barHeaderStyle}><span>{getMadeHandLabel(category)}</span><strong>{pct(value)}</strong></div>
-                      <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(value), background: '#0f766e' }} /></div>
-                    </div>
-                  ))}
-                  <div style={emptyTextStyle}>采样数：{result.futureHandDistribution.sampleCount.toLocaleString()}（Monte Carlo 估算）</div>
-                </div>
-              ) : (
-                <div style={emptyTextStyle}>分析后这里会显示从当前街道出发，最终最可能形成哪些牌型。</div>
-              )}
-            </ResultCard>
-
-            <ResultCard title="范围对比" accent="#7c3aed">
-              {result ? (
-                compareResults.length > 0 ? (
+              <AccordionSection title="最终牌型分布" subtitle="未来成牌概率" open={openSection === 'distribution'} onToggle={() => handleAccordionToggle('distribution')}>
+                {result ? (
                   <div style={{ display: 'grid', gap: 10 }}>
-                    <div style={miniLabelStyle}>在相同 Hero / Board 下，对几组常见对手范围做快速对比</div>
+                    {getDistributionEntries(result.futureHandDistribution.distribution).map(([category, value]) => (
+                      <div key={category} style={barGroupStyle}>
+                        <div style={barHeaderStyle}><span>{getMadeHandLabel(category)}</span><strong>{pct(value)}</strong></div>
+                        <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(value), background: 'linear-gradient(90deg, #2dd4bf, #14b8a6)' }} /></div>
+                      </div>
+                    ))}
+                    <div style={helperTextStyle}>采样数：{result.futureHandDistribution.sampleCount.toLocaleString()}（Monte Carlo 估算）</div>
+                  </div>
+                ) : <div style={emptyTextStyle}>分析后这里会显示最终牌型分布。</div>}
+              </AccordionSection>
+
+              <AccordionSection title="范围对比" subtitle="仅 preset 模式下开启" open={openSection === 'compare'} onToggle={() => handleAccordionToggle('compare')}>
+                {result ? compareResults.length > 0 ? (
+                  <div style={{ display: 'grid', gap: 10 }}>
                     {compareResults.map((item) => (
                       <div key={item.presetName} style={compareRowStyle}>
                         <div>
                           <div style={{ fontWeight: 800 }}>{item.label}</div>
                           <div style={{ fontSize: 12, color: '#6b7280' }}>Win {pct(item.winRate)} · Tie {pct(item.tieRate)} · Lose {pct(item.loseRate)}</div>
                         </div>
-                        <div style={{ minWidth: 180 }}>
-                          <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(item.equity), background: '#7c3aed' }} /></div>
-                        </div>
-                        <div style={{ fontWeight: 800, color: '#5b21b6', minWidth: 64, textAlign: 'right' }}>{pct(item.equity)}</div>
+                        <div style={compareBarCellStyle}><div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(item.equity), background: 'linear-gradient(90deg, #a78bfa, #8b5cf6)' }} /></div></div>
+                        <div style={compareValueStyle}>{pct(item.equity)}</div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div style={emptyTextStyle}>当前如果启用了分类筛选器或高级范围输入，范围对比会暂时关闭，以避免与你手动定义的范围冲突。</div>
-                )
-              ) : (
-                <div style={emptyTextStyle}>分析后这里会对比几组常见对手范围下的 equity 变化。</div>
-              )}
-            </ResultCard>
+                ) : <div style={emptyTextStyle}>启用分类筛选器或高级 Range Text 时，这个模块会关闭，避免和手工定义范围冲突。</div> : <div style={emptyTextStyle}>分析后这里会显示常见范围对比。</div>}
+              </AccordionSection>
 
-            <ResultCard title="当前分析假设" accent="#475569">
-              {result ? (
-                <div style={assumptionGridStyle}>
-                  <div style={assumptionItemStyle}><span>mode</span><strong>{result.assumptions.mode}</strong></div>
-                  <div style={assumptionItemStyle}><span>rangeSource</span><strong>{result.assumptions.rangeSource}</strong></div>
-                  <div style={assumptionItemStyle}><span>received</span><strong>{result.assumptions.playerCountReceived}</strong></div>
-                  <div style={assumptionItemStyle}><span>applied</span><strong>{result.assumptions.playerCountApplied}</strong></div>
-                </div>
-              ) : (
-                <div style={emptyTextStyle}>分析后这里会提醒你当前用的是单对手假设。</div>
-              )}
-            </ResultCard>
-          </div>
-        </div>
-      </section>
-
+              <AccordionSection title="当前分析假设" subtitle="查看 rangeSource / playerCount 等底层假设" open={openSection === 'assumptions'} onToggle={() => handleAccordionToggle('assumptions')}>
+                {result ? (
+                  <div style={assumptionGridStyle}>
+                    <div style={assumptionItemStyle}><span>mode</span><strong>{result.assumptions.mode}</strong></div>
+                    <div style={assumptionItemStyle}><span>rangeSource</span><strong>{result.assumptions.rangeSource}</strong></div>
+                    <div style={assumptionItemStyle}><span>received</span><strong>{result.assumptions.playerCountReceived}</strong></div>
+                    <div style={assumptionItemStyle}><span>applied</span><strong>{result.assumptions.playerCountApplied}</strong></div>
+                  </div>
+                ) : <div style={emptyTextStyle}>分析后这里会显示当前假设。</div>}
+              </AccordionSection>
+            </div>
+          </section>
+        </section>
+      </div>
 
       {showHelpModal ? (
         <div style={modalOverlayStyle} onClick={() => setShowHelpModal(false)}>
@@ -998,47 +949,11 @@ export default function HomePage() {
             <div style={modalHeaderRowStyle}>
               <div>
                 <div style={modalTitleStyle}>说明</div>
-                <div style={modalSubtitleStyle}>这个服务是什么、适合怎么用</div>
+                <div style={modalSubtitleStyle}>当前页面改成工作台布局，核心结果固定在第一页。</div>
               </div>
               <button type="button" style={secondaryButtonStyle} onClick={() => setShowHelpModal(false)}>关闭</button>
             </div>
-
-            <div style={modalContentBlockStyle}>
-              <h3 style={modalSectionTitleStyle}>背景</h3>
-              <p style={modalParagraphStyle}>
-                这是一个面向 <strong>单对手德州扑克训练</strong> 的分析工具，用来帮助你快速理解一手牌在某个牌面和对手范围下的大致胜率、当前牌力、听牌结构，以及一个教学型建议。
-              </p>
-            </div>
-
-            <div style={modalContentBlockStyle}>
-              <h3 style={modalSectionTitleStyle}>当前定位</h3>
-              <ul style={modalListStyle}>
-                <li>聚焦 <strong>单对手</strong> 场景</li>
-                <li>适合做复盘、训练和牌感校准</li>
-                <li>建议是 <strong>教学型 heuristic</strong>，不是 GTO / solver 结论</li>
-                <li>胜率来自 Monte Carlo 估算，不是穷举精确解</li>
-              </ul>
-            </div>
-
-            <div style={modalContentBlockStyle}>
-              <h3 style={modalSectionTitleStyle}>使用方法</h3>
-              <ol style={modalListStyle}>
-                <li>先用左侧点牌器选择 Hero 手牌和公共牌</li>
-                <li>选择一个 Range Preset，或填写自定义 Range Text</li>
-                <li>点击“开始分析”</li>
-                <li>优先看右侧“分析结论”，再看下面的详细结果卡片</li>
-              </ol>
-            </div>
-
-            <div style={modalContentBlockStyle}>
-              <h3 style={modalSectionTitleStyle}>怎么看结果</h3>
-              <ul style={modalListStyle}>
-                <li><strong>Equity</strong>：在当前假设下，你大致能分到多少权益</li>
-                <li><strong>Made Hand</strong>：当前是否已经成手</li>
-                <li><strong>听牌标签</strong>：说明后续改良空间</li>
-                <li><strong>建议原因</strong>：解释当前为什么更偏向 raise / call / check / fold</li>
-              </ul>
-            </div>
+            <div style={modalContentBlockStyle}><p style={modalParagraphStyle}>左侧负责输入，右侧负责结果；只有最关键的四项默认露出，其他内容都通过折叠面板按需查看。</p></div>
           </div>
         </div>
       ) : null}
@@ -1053,30 +968,12 @@ export default function HomePage() {
               </div>
               <button type="button" style={secondaryButtonStyle} onClick={() => setShowFeedbackModal(false)}>关闭</button>
             </div>
-
-            <label style={labelStyle}>
-              收件人
-              <input style={inputStyle} value="cq.fanlingzhi@gmail.com" readOnly />
-            </label>
-
-            <label style={labelStyle}>
-              主题
-              <input style={inputStyle} value={feedbackSubject} onChange={(e) => setFeedbackSubject(e.target.value)} />
-            </label>
-
-            <label style={labelStyle}>
-              内容
-              <textarea style={textareaStyle} value={feedbackMessage} onChange={(e) => setFeedbackMessage(e.target.value)} />
-            </label>
-
+            <label style={labelStyle}>收件人<input style={inputStyle} value="cq.fanlingzhi@gmail.com" readOnly /></label>
+            <label style={labelStyle}>主题<input style={inputStyle} value={feedbackSubject} onChange={(e) => setFeedbackSubject(e.target.value)} /></label>
+            <label style={labelStyle}>内容<textarea style={textareaStyle} value={feedbackMessage} onChange={(e) => setFeedbackMessage(e.target.value)} /></label>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" style={secondaryButtonStyle} onClick={() => setShowFeedbackModal(false)}>取消</button>
-              <a
-                href={`mailto:cq.fanlingzhi@gmail.com?subject=${encodeURIComponent(feedbackSubject)}&body=${encodeURIComponent(feedbackMessage)}`}
-                style={primaryLinkButtonStyle}
-              >
-                打开邮件客户端发送
-              </a>
+              <a href={`mailto:cq.fanlingzhi@gmail.com?subject=${encodeURIComponent(feedbackSubject)}&body=${encodeURIComponent(feedbackMessage)}`} style={primaryLinkButtonStyle}>打开邮件客户端发送</a>
             </div>
           </div>
         </div>
@@ -1091,12 +988,8 @@ export default function HomePage() {
                 <div style={{ color: '#666', fontSize: 13 }}>正在选择：{getPickerTargetLabel(pickerTarget)}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" style={secondaryButtonStyle} onClick={() => clearSlot(pickerTarget)}>
-                  清空这个位置
-                </button>
-                <button type="button" style={secondaryButtonStyle} onClick={() => { setPickerTarget(null); setPickerSuit(null); }}>
-                  关闭
-                </button>
+                <button type="button" style={secondaryButtonStyle} onClick={() => clearSlot(pickerTarget)}>清空这个位置</button>
+                <button type="button" style={secondaryButtonStyle} onClick={() => { setPickerTarget(null); setPickerSuit(null); }}>关闭</button>
               </div>
             </div>
 
@@ -1105,24 +998,13 @@ export default function HomePage() {
                 <div style={pickerStageTitleStyle}>第一步：先选花色</div>
                 <div style={suitGridStyle}>
                   {suitOrder.map((suit) => (
-                    <button
-                      key={suit}
-                      type="button"
-                      onClick={() => setPickerSuit(suit)}
-                      style={{
-                        ...suitButtonStyle,
-                        color: getSuitColor(suit),
-                        borderColor: pickerSuit === suit ? '#2563eb' : '#d1d5db',
-                        background: pickerSuit === suit ? '#eff6ff' : '#fff',
-                      }}
-                    >
+                    <button key={suit} type="button" onClick={() => setPickerSuit(suit)} style={{ ...suitButtonStyle, color: getSuitColor(suit), borderColor: pickerSuit === suit ? '#2563eb' : '#d1d5db', background: pickerSuit === suit ? '#eff6ff' : '#fff' }}>
                       <span style={{ fontSize: 24 }}>{getSuitSymbol(suit)}</span>
                       <span style={{ fontSize: 12, color: '#6b7280' }}>{suit === 's' ? '黑桃' : suit === 'h' ? '红桃' : suit === 'd' ? '方块' : '梅花'}</span>
                     </button>
                   ))}
                 </div>
               </div>
-
               <div>
                 <div style={pickerStageTitleStyle}>第二步：再选点数</div>
                 <div style={rankGridStyle}>
@@ -1132,21 +1014,8 @@ export default function HomePage() {
                     const isCurrent = candidate && normalizeCardCode(currentValue) === candidate;
                     const isUsedElsewhere = candidate ? usedCards.includes(candidate) && !isCurrent : false;
                     const disabled = !pickerSuit || isUsedElsewhere;
-
                     return (
-                      <button
-                        key={rank}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => pickerSuit && applyCardToTarget(candidate)}
-                        style={{
-                          ...rankButtonStyle,
-                          background: isUsedElsewhere ? '#e5e7eb' : isCurrent ? '#eff6ff' : pickerSuit ? '#fff' : '#f9fafb',
-                          color: pickerSuit ? getSuitColor(pickerSuit) : '#9ca3af',
-                          borderColor: isCurrent ? '#2563eb' : '#d1d5db',
-                          cursor: disabled ? 'not-allowed' : 'pointer',
-                        }}
-                      >
+                      <button key={rank} type="button" disabled={disabled} onClick={() => pickerSuit && applyCardToTarget(candidate)} style={{ ...rankButtonStyle, background: isUsedElsewhere ? '#e5e7eb' : isCurrent ? '#eff6ff' : pickerSuit ? '#fff' : '#f9fafb', color: pickerSuit ? getSuitColor(pickerSuit) : '#9ca3af', borderColor: isCurrent ? '#2563eb' : '#d1d5db', cursor: disabled ? 'not-allowed' : 'pointer' }}>
                         <span style={{ fontSize: 20, fontWeight: 800 }}>{rank}</span>
                         <span style={{ fontSize: 18 }}>{pickerSuit ? getSuitSymbol(pickerSuit) : '·'}</span>
                       </button>
@@ -1155,7 +1024,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-
             <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>已占用牌会以灰色禁用展示，不可被选中。先选花色，再选点数。</div>
           </div>
         </div>
@@ -1164,689 +1032,128 @@ export default function HomePage() {
   );
 }
 
-const heroHeaderStyle: React.CSSProperties = {
-  background: 'linear-gradient(135deg, #0f172a, #1e3a8a)',
-  color: '#fff',
-  borderRadius: 18,
-  padding: '24px 26px',
-  marginBottom: 18,
-  boxShadow: '0 18px 40px rgba(15, 23, 42, 0.16)',
-};
-
-const eyebrowStyle: React.CSSProperties = {
-  display: 'inline-block',
-  fontSize: 12,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  padding: '4px 8px',
-  borderRadius: 999,
-  background: 'rgba(255,255,255,0.12)',
-  marginBottom: 12,
-};
-
-const cardStyle: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #e5e7eb',
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: '0 10px 30px rgba(15,23,42,0.05)',
-};
-
-const inputTopLayoutStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) 280px',
-  gap: 18,
-  alignItems: 'start',
-};
-
-const inputFieldsGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, minmax(220px, 1fr))',
-  gap: 12,
-};
-
-const actionRailStyle: React.CSSProperties = {
+const pageStyle: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'linear-gradient(180deg, #fdf2f8 0%, #eff6ff 48%, #f8fafc 100%)',
   position: 'relative',
-};
-
-const actionRailCardStyle: React.CSSProperties = {
-  position: 'sticky',
-  top: 18,
-  background: '#f8fafc',
-  border: '1px solid #e5e7eb',
-  borderRadius: 14,
-  padding: 14,
-  display: 'grid',
-  gap: 12,
-};
-
-const heroResultCardStyle: React.CSSProperties = {
-  borderRadius: 18,
-  padding: 20,
-  boxShadow: '0 18px 40px rgba(15, 23, 42, 0.08)',
-};
-
-const heroResultTopRowStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 16,
-  alignItems: 'flex-start',
-  marginBottom: 18,
-  flexWrap: 'wrap',
-};
-
-const actionPillStyle: React.CSSProperties = {
-  color: '#fff',
-  padding: '8px 14px',
-  borderRadius: 999,
-  fontSize: 13,
-  fontWeight: 800,
-  whiteSpace: 'nowrap',
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  marginTop: 0,
-  marginBottom: 16,
-  fontSize: 20,
-};
-
-const resultCardStyle: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #e5e7eb',
-  borderRadius: 16,
-  padding: 16,
-  boxShadow: '0 8px 24px rgba(15, 23, 42, 0.04)',
-};
-
-const resultCardTitleStyle: React.CSSProperties = {
-  marginTop: 0,
-  marginBottom: 12,
-  fontSize: 16,
-};
-
-const detailsGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-  gap: 16,
-};
-
-const subTitleStyle: React.CSSProperties = {
-  marginTop: 0,
-  marginBottom: 8,
-  fontSize: 16,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontWeight: 600,
-  marginBottom: 12,
-};
-
-const inputStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  marginTop: 6,
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: '1px solid #d9d9d9',
-  fontSize: 14,
-  boxSizing: 'border-box',
-};
-
-const buttonStyle: React.CSSProperties = {
-  width: '100%',
-  marginTop: 12,
-  padding: '12px 16px',
-  borderRadius: 12,
-  border: 'none',
-  background: 'linear-gradient(135deg, #111827, #1f2937)',
-  color: '#fff',
-  fontSize: 15,
-  fontWeight: 700,
-  cursor: 'pointer',
-  boxShadow: '0 10px 20px rgba(17, 24, 39, 0.18)',
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: 8,
-  border: '1px solid #d1d5db',
-  background: '#fff',
-  cursor: 'pointer',
-};
-
-const chipButtonStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: 999,
-  border: '1px solid #d1d5db',
-  background: '#fff',
-  cursor: 'pointer',
-  fontSize: 13,
-  boxShadow: '0 2px 6px rgba(15,23,42,0.05)',
-};
-
-const hintStyle: React.CSSProperties = {
-  display: 'block',
-  color: '#666',
-  marginTop: -6,
-  marginBottom: 12,
-};
-
-const noticeStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 12,
-  borderRadius: 10,
-  border: '1px solid',
-};
-
-const listStyle: React.CSSProperties = {
-  paddingLeft: 18,
-  marginTop: 8,
-  marginBottom: 0,
-};
-
-const metricGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-  gap: 12,
-};
-
-const metricCardStrongStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.55)',
-  border: '1px solid rgba(255,255,255,0.45)',
-  borderRadius: 14,
-  padding: 14,
-  backdropFilter: 'blur(4px)',
-};
-
-const metricLabelLightStyle: React.CSSProperties = {
-  fontSize: 12,
-  opacity: 0.75,
-  marginBottom: 6,
-};
-
-const metricValueStrongStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 900,
-};
-
-const barGroupStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: 6,
-  marginBottom: 10,
-};
-
-const barHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  fontSize: 13,
-  color: '#374151',
-};
-
-const barTrackStyle: React.CSSProperties = {
-  height: 10,
-  background: '#e5e7eb',
-  borderRadius: 999,
   overflow: 'hidden',
 };
 
-const barFillStyle: React.CSSProperties = {
-  height: '100%',
-  borderRadius: 999,
+const orbAStyle: React.CSSProperties = {
+  position: 'fixed', top: -120, right: -90, width: 280, height: 280, borderRadius: '50%',
+  background: 'radial-gradient(circle, rgba(244,114,182,0.22), rgba(244,114,182,0))', pointerEvents: 'none',
 };
-
-const madeHandBadgeStyle: React.CSSProperties = {
-  display: 'inline-block',
-  background: '#111827',
-  color: '#fff',
-  borderRadius: 999,
-  padding: '8px 12px',
-  fontWeight: 800,
-  fontSize: 13,
+const orbBStyle: React.CSSProperties = {
+  position: 'fixed', left: -80, bottom: -120, width: 320, height: 320, borderRadius: '50%',
+  background: 'radial-gradient(circle, rgba(96,165,250,0.22), rgba(96,165,250,0))', pointerEvents: 'none',
 };
-
-const tagWrapStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 8,
+const shellStyle: React.CSSProperties = { maxWidth: 1440, margin: '0 auto', padding: 24, position: 'relative', zIndex: 1 };
+const heroHeaderStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(18px)', border: '1px solid rgba(255,255,255,0.72)', borderRadius: 28,
+  padding: '18px 24px', marginBottom: 14, boxShadow: '0 18px 60px rgba(148,163,184,0.16)', maxWidth: 1180
 };
-
-const drawTagStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  padding: '7px 10px',
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 700,
-};
-
-const miniLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: '#6b7280',
-  marginBottom: 8,
-};
-
-const reasonListStyle: React.CSSProperties = {
-  listStyle: 'none',
-  padding: 0,
-  margin: 0,
-  display: 'grid',
-  gap: 10,
-};
-
-const reasonItemStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  borderRadius: 10,
-  background: '#fff7ed',
-  border: '1px solid #fed7aa',
-  color: '#9a3412',
-  lineHeight: 1.6,
-};
-
-const assumptionGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 10,
-};
-
-const assumptionItemStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  borderRadius: 10,
-  background: '#f8fafc',
-  border: '1px solid #e2e8f0',
-  display: 'grid',
-  gap: 4,
-  fontSize: 13,
-  color: '#475569',
-};
-
-const emptyTextStyle: React.CSSProperties = {
-  color: '#6b7280',
-  lineHeight: 1.7,
-  fontSize: 14,
-};
-
-const pickerLabelStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: '#4b5563',
-  marginBottom: 6,
-  fontWeight: 700,
-};
-
-const cardSlotStyle: React.CSSProperties = {
-  width: 72,
-  borderRadius: 12,
-  border: '1px solid #d1d5db',
-  background: '#fff',
-  padding: 8,
-  cursor: 'pointer',
-};
-
-const cardSlotLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: '#6b7280',
-  marginBottom: 6,
-};
-
-const cardFaceStyle: React.CSSProperties = {
-  minHeight: 52,
-  borderRadius: 10,
-  border: '1px solid #e5e7eb',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 22,
-  fontWeight: 800,
-  gap: 2,
-  background: '#f9fafb',
-};
-
-const emptyCardFaceStyle: React.CSSProperties = {
-  minHeight: 52,
-  borderRadius: 10,
-  border: '1px dashed #d1d5db',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 12,
-  color: '#9ca3af',
-  background: '#fafafa',
-};
-
-const modalOverlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(15, 23, 42, 0.55)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 24,
-  zIndex: 50,
-};
-
-const modalCardStyle: React.CSSProperties = {
-  width: 'min(860px, 100%)',
-  maxHeight: '90vh',
-  overflow: 'auto',
-  background: '#fff',
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
-};
-
-const pickerStageTitleStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  color: '#4b5563',
-  marginBottom: 8,
-};
-
-const suitGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-  gap: 10,
-};
-
-const suitButtonStyle: React.CSSProperties = {
-  minHeight: 74,
-  borderRadius: 12,
-  border: '1px solid #d1d5db',
-  background: '#fff',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 4,
-  cursor: 'pointer',
-};
-
-const rankGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(56px, 1fr))',
-  gap: 8,
-};
-
-const rankButtonStyle: React.CSSProperties = {
-  minHeight: 64,
-  borderRadius: 10,
-  border: '1px solid #d1d5db',
-  background: '#fff',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 2,
-};
-
-const heroHeaderTopBarStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 10,
-  marginBottom: 18,
-};
-
-const heroTopButtonStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: 999,
-  border: '1px solid rgba(255,255,255,0.22)',
-  background: 'rgba(255,255,255,0.10)',
-  color: '#fff',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 700,
-};
-
-const infoModalCardStyle: React.CSSProperties = {
-  width: 'min(760px, 100%)',
-  maxHeight: '90vh',
-  overflow: 'auto',
-  background: '#fff',
-  borderRadius: 16,
-  padding: 20,
-  boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
-};
-
-const modalHeaderRowStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 12,
-  marginBottom: 18,
-  flexWrap: 'wrap',
-};
-
-const modalTitleStyle: React.CSSProperties = {
-  fontSize: 22,
-  fontWeight: 900,
-  marginBottom: 4,
-};
-
-const modalSubtitleStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: '#6b7280',
-};
-
-const modalContentBlockStyle: React.CSSProperties = {
-  marginBottom: 18,
-};
-
-const modalSectionTitleStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 800,
-  margin: '0 0 8px 0',
-};
-
-const modalParagraphStyle: React.CSSProperties = {
-  margin: 0,
-  lineHeight: 1.7,
-  color: '#374151',
-};
-
-const modalListStyle: React.CSSProperties = {
-  margin: 0,
-  paddingLeft: 18,
-  lineHeight: 1.8,
-  color: '#374151',
-};
-
-const textareaStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  minHeight: 160,
-  marginTop: 6,
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: '1px solid #d9d9d9',
-  fontSize: 14,
-  boxSizing: 'border-box',
-  resize: 'vertical',
-  fontFamily: 'inherit',
-};
-
-const primaryLinkButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '10px 14px',
-  borderRadius: 10,
-  background: '#111827',
-  color: '#fff',
-  textDecoration: 'none',
-  fontWeight: 700,
-};
-
-const summaryPanelStyle: React.CSSProperties = {
-  marginBottom: 14,
-  padding: '12px 14px',
-  borderRadius: 12,
-  background: 'rgba(255,255,255,0.55)',
-  border: '1px solid rgba(255,255,255,0.45)',
-  fontSize: 14,
-  lineHeight: 1.7,
-};
-
-const insightWrapStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: 10,
-};
-
-const insightCardStyle: React.CSSProperties = {
-  padding: '12px 14px',
-  borderRadius: 12,
-  border: '1px solid',
-  lineHeight: 1.65,
-  fontSize: 14,
-};
-
-const rangeInfoCardStyle: React.CSSProperties = {
-  marginTop: 6,
-  marginBottom: 12,
-  padding: '14px 14px',
-  borderRadius: 14,
-  border: '1px solid #e5e7eb',
-  background: '#fbfdff',
-};
-
-const rangeInfoTitleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 800,
-  marginBottom: 4,
-};
-
-const rangeInfoSubtitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: '#6b7280',
-};
-
-const rangeBadgeStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  padding: '6px 10px',
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 700,
-};
-
-const rangeDescriptionStyle: React.CSSProperties = {
-  lineHeight: 1.7,
-  color: '#374151',
-  fontSize: 14,
-};
-
-const rangeHintStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  borderRadius: 10,
-  background: '#eff6ff',
-  border: '1px solid #bfdbfe',
-  color: '#1d4ed8',
-  lineHeight: 1.65,
-  fontSize: 14,
-};
-
-const quickPresetWrapStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 8,
-};
-
-const quickPresetChipStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: 999,
-  border: '1px solid #d1d5db',
-  background: '#fff',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 700,
-};
-
-const advancedRangePanelStyle: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
-  borderRadius: 14,
-  background: '#fcfcfd',
-  overflow: 'hidden',
-};
-
-const advancedRangeToggleStyle: React.CSSProperties = {
-  width: '100%',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '12px 14px',
-  border: 'none',
-  background: 'transparent',
-  fontSize: 14,
-  fontWeight: 700,
-  cursor: 'pointer',
-  textAlign: 'left',
-};
-
-const advancedRangeBodyStyle: React.CSSProperties = {
-  padding: '0 14px 14px 14px',
-  borderTop: '1px solid #eef2f7',
-};
-
-const advancedRangeHintStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  borderRadius: 10,
-  background: '#f8fafc',
-  border: '1px solid #e2e8f0',
-  color: '#475569',
-  lineHeight: 1.65,
-  fontSize: 13,
-};
-
-const rangeBrowsePanelStyle: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
-  borderRadius: 14,
-  background: '#ffffff',
-  padding: '14px',
-};
-
-const rangeGroupTitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: '#6b7280',
-  fontWeight: 800,
-  marginBottom: 8,
-};
-
-const filterPanelStyle: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
-  borderRadius: 14,
-  background: '#ffffff',
-  padding: '14px',
-};
-
-const filterChipWrapStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 8,
-  marginBottom: 10,
-};
-
-const filterChipStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: 999,
-  border: '1px solid #d1d5db',
-  background: '#fff',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 700,
-};
-
-const filterSummaryStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: '#475569',
-  lineHeight: 1.65,
-};
-
-const compareRowStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(120px, 1fr) minmax(140px, 220px) 72px',
-  gap: 12,
-  alignItems: 'center',
-  padding: '10px 12px',
-  borderRadius: 12,
-  background: '#faf5ff',
-  border: '1px solid #e9d5ff',
-};
+const heroHeaderTopBarStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' };
+const eyebrowStyle: React.CSSProperties = { display: 'inline-flex', padding: '6px 10px', borderRadius: 999, background: 'rgba(79,70,229,0.08)', color: '#4338ca', fontWeight: 700, fontSize: 12, marginBottom: 10 };
+const heroTitleStyle: React.CSSProperties = { margin: '0 0 6px 0', fontSize: 30, color: '#0f172a' };
+const heroSubtitleStyle: React.CSSProperties = { margin: 0, color: '#475569', lineHeight: 1.65, maxWidth: 760 };
+const ghostHeaderButtonStyle: React.CSSProperties = { padding: '10px 14px', borderRadius: 999, border: '1px solid rgba(203,213,225,0.9)', background: 'rgba(255,255,255,0.72)', cursor: 'pointer', fontWeight: 700 };
+const scenarioStripStyle: React.CSSProperties = { marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' };
+const scenarioLabelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#64748b', marginRight: 4 };
+const chipButtonStyle: React.CSSProperties = { padding: '10px 14px', borderRadius: 999, border: '1px solid rgba(203,213,225,0.9)', background: 'rgba(255,255,255,0.86)', cursor: 'pointer', fontWeight: 700, boxShadow: '0 8px 20px rgba(148,163,184,0.08)' };
+const stepTopRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 };
+const scenarioInlineStyle: React.CSSProperties = { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' };
+const miniScenarioButtonStyle: React.CSSProperties = { padding: '8px 12px', borderRadius: 999, border: '1px solid rgba(203,213,225,0.9)', background: 'rgba(255,255,255,0.86)', cursor: 'pointer', fontWeight: 700, fontSize: 12, boxShadow: '0 6px 16px rgba(148,163,184,0.08)' };
+const workbenchStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(500px, 580px) minmax(0, 1fr)', gap: 18, alignItems: 'start' };
+const leftPanelStyle: React.CSSProperties = { position: 'sticky', top: 18, alignSelf: 'start' };
+const rightPanelStyle: React.CSSProperties = { display: 'grid', gap: 18 };
+const glassCardStyle: React.CSSProperties = { background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(18px)', borderRadius: 28, border: '1px solid rgba(255,255,255,0.72)', padding: 20, boxShadow: '0 18px 60px rgba(148,163,184,0.16)' };
+const panelHeaderStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 16, flexWrap: 'wrap' };
+const panelEyebrowStyle: React.CSSProperties = { fontSize: 12, color: '#8b5cf6', fontWeight: 800, marginBottom: 6 };
+const panelTitleStyle: React.CSSProperties = { margin: 0, fontSize: 22, color: '#0f172a' };
+const panelHintStyle: React.CSSProperties = { color: '#64748b', fontSize: 13, fontWeight: 700 };
+const subSectionTitleStyle: React.CSSProperties = { fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 8 };
+const subSectionWrapStyle: React.CSSProperties = { marginTop: 18 };
+const inputGroupStyle: React.CSSProperties = { display: 'grid', gap: 12, marginTop: 16 };
+const labelStyle: React.CSSProperties = { display: 'block', fontWeight: 700, color: '#334155' };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', marginTop: 6, padding: '12px 14px', borderRadius: 16, border: '1px solid rgba(203,213,225,0.9)', background: 'rgba(255,255,255,0.88)', fontSize: 14, boxSizing: 'border-box', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9)' };
+const chipWrapStyle: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8 };
+const pillButtonStyle: React.CSSProperties = { padding: '9px 12px', borderRadius: 999, border: '1px solid rgba(203,213,225,0.95)', background: 'rgba(255,255,255,0.85)', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#334155' };
+const pillButtonActiveStyle: React.CSSProperties = { background: 'linear-gradient(135deg, #111827, #334155)', color: '#fff', borderColor: '#111827' };
+const helperTextStyle: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#64748b', lineHeight: 1.7 };
+const advancedRangePanelStyle: React.CSSProperties = { marginTop: 18, border: '1px solid rgba(226,232,240,0.95)', borderRadius: 20, background: 'rgba(255,255,255,0.58)', overflow: 'hidden' };
+const advancedRangeToggleStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', border: 'none', background: 'transparent', fontSize: 14, fontWeight: 800, cursor: 'pointer', textAlign: 'left' };
+const advancedRangeBodyStyle: React.CSSProperties = { padding: '0 16px 16px 16px', borderTop: '1px solid rgba(226,232,240,0.9)' };
+const rangeInfoCardStyle: React.CSSProperties = { marginTop: 18, padding: 16, borderRadius: 22, background: 'rgba(255,255,255,0.74)', border: '1px solid rgba(226,232,240,0.95)', boxShadow: '0 10px 24px rgba(148,163,184,0.08)' };
+const rangeInfoTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 900, color: '#0f172a' };
+const rangeInfoSubtitleStyle: React.CSSProperties = { marginTop: 4, fontSize: 13, color: '#64748b', lineHeight: 1.65 };
+const rangeCodeBlockStyle: React.CSSProperties = { marginTop: 12, padding: '12px 14px', borderRadius: 16, background: '#111827', color: '#f8fafc', border: '1px solid #374151', overflowX: 'auto', wordBreak: 'break-all', fontSize: 13 };
+const softBadgeStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '7px 10px', borderRadius: 999, border: '1px solid rgba(226,232,240,0.95)', fontSize: 12, fontWeight: 800 };
+const rangeHintLightStyle: React.CSSProperties = { marginTop: 12, padding: '10px 12px', borderRadius: 14, background: '#eff6ff', color: '#1d4ed8', fontSize: 13, lineHeight: 1.65 };
+const softNoticeStyle: React.CSSProperties = { marginTop: 16, padding: '12px 14px', borderRadius: 16, background: 'rgba(248,250,252,0.92)', border: '1px solid rgba(203,213,225,0.92)', color: '#475569', lineHeight: 1.65 };
+const warningNoticeStyle: React.CSSProperties = { marginTop: 14, padding: '12px 14px', borderRadius: 16, border: '1px solid', lineHeight: 1.65 };
+const listStyle: React.CSSProperties = { paddingLeft: 18, margin: '8px 0 0 0' };
+const primaryActionStyle: React.CSSProperties = { width: '100%', padding: '15px 18px', borderRadius: 20, border: 'none', background: 'linear-gradient(135deg, #111827, #4338ca)', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 18px 36px rgba(67,56,202,0.22)' };
+const stickyActionWrapStyle: React.CSSProperties = { position: 'sticky', top: 12, zIndex: 3, marginTop: 14, marginBottom: 4, display: 'grid', gap: 10 };
+const secondaryActionStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', borderRadius: 18, border: '1px solid rgba(203,213,225,0.95)', background: 'rgba(255,255,255,0.86)', color: '#334155', fontSize: 14, fontWeight: 800, cursor: 'pointer' };
+const miniGhostButtonStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 999, border: '1px solid rgba(203,213,225,0.95)', background: 'rgba(255,255,255,0.9)', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' };
+const heroResultCardStyle: React.CSSProperties = { borderRadius: 30, padding: 22, border: '1px solid rgba(255,255,255,0.72)', backdropFilter: 'blur(18px)', boxShadow: '0 18px 60px rgba(148,163,184,0.16)' };
+const actionPillStyle: React.CSSProperties = { color: '#fff', padding: '9px 14px', borderRadius: 999, fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' };
+const heroMainDecisionStyle: React.CSSProperties = { fontSize: 34, fontWeight: 900, marginBottom: 8 };
+const heroDecisionSubStyle: React.CSSProperties = { fontSize: 15, lineHeight: 1.75, maxWidth: 760, opacity: 0.92 };
+const memoryLineStyle: React.CSSProperties = { marginTop: 16, padding: '14px 16px', borderRadius: 18, background: 'rgba(255,255,255,0.52)', border: '1px solid rgba(255,255,255,0.68)', lineHeight: 1.7 };
+const coreMetricsRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginTop: 16 };
+const metricBubbleStyle: React.CSSProperties = { padding: '16px 14px', borderRadius: 22, background: 'rgba(255,255,255,0.62)', border: '1px solid rgba(255,255,255,0.72)', minHeight: 112, display: 'grid', gap: 8, alignContent: 'start' };
+const metricBubbleLabelStyle: React.CSSProperties = { fontSize: 12, opacity: 0.72, fontWeight: 700 };
+const metricBubbleValueStyle: React.CSSProperties = { fontSize: 18, fontWeight: 900, lineHeight: 1.45, wordBreak: 'break-word' };
+const topThreeCardStyle: React.CSSProperties = { marginTop: 14, padding: '14px 16px', borderRadius: 20, background: 'rgba(255,255,255,0.58)', border: '1px solid rgba(255,255,255,0.72)' };
+const topThreeListStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 };
+const topThreeItemStyle: React.CSSProperties = { display: 'flex', gap: 10, alignItems: 'center', padding: '12px 12px', borderRadius: 16, background: 'rgba(255,255,255,0.72)', border: '1px solid rgba(226,232,240,0.92)' };
+const topThreeRankStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg, #c4b5fd, #93c5fd)', color: '#1f2937', fontWeight: 900, fontSize: 13, flexShrink: 0 };
+const topThreeNameStyle: React.CSSProperties = { fontWeight: 800, color: '#0f172a', marginBottom: 2 };
+const topThreeValueStyle: React.CSSProperties = { fontSize: 13, color: '#475569', fontWeight: 700 };
+const accordionStackStyle: React.CSSProperties = { display: 'grid', gap: 12 };
+const accordionCardStyle: React.CSSProperties = { background: 'rgba(255,255,255,0.66)', backdropFilter: 'blur(14px)', borderRadius: 24, border: '1px solid rgba(255,255,255,0.72)', boxShadow: '0 12px 28px rgba(148,163,184,0.12)' };
+const accordionHeaderStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '16px 18px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' };
+const accordionTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 900, color: '#0f172a' };
+const accordionSubtitleStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: '#64748b' };
+const accordionChevronStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'rgba(255,255,255,0.72)', border: '1px solid rgba(226,232,240,0.9)', color: '#475569', fontSize: 18, fontWeight: 700 };
+const accordionBodyStyle: React.CSSProperties = { padding: '0 18px 18px 18px' };
+const miniLabelStyle: React.CSSProperties = { fontSize: 12, color: '#64748b', marginBottom: 8, fontWeight: 700 };
+const madeHandBadgeStyle: React.CSSProperties = { display: 'inline-block', background: 'linear-gradient(135deg, #111827, #334155)', color: '#fff', borderRadius: 999, padding: '8px 12px', fontWeight: 800, fontSize: 13 };
+const tagWrapStyle: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8 };
+const drawTagStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '8px 10px', borderRadius: 999, fontSize: 12, fontWeight: 800 };
+const stackListStyle: React.CSSProperties = { display: 'grid', gap: 10 };
+const softListItemStyle: React.CSSProperties = { padding: '12px 14px', borderRadius: 16, background: 'rgba(255,255,255,0.78)', border: '1px solid rgba(226,232,240,0.95)', color: '#334155', lineHeight: 1.65 };
+const softInsightStyle: React.CSSProperties = { padding: '12px 14px', borderRadius: 16, lineHeight: 1.65, fontWeight: 600 };
+const barGroupStyle: React.CSSProperties = { display: 'grid', gap: 6, marginBottom: 10 };
+const barHeaderStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' };
+const barTrackStyle: React.CSSProperties = { height: 10, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden' };
+const barFillStyle: React.CSSProperties = { height: '100%', borderRadius: 999 };
+const compareRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(140px,1fr) minmax(120px,220px) 72px', gap: 12, alignItems: 'center', padding: '12px 14px', borderRadius: 16, background: 'rgba(245,243,255,0.88)', border: '1px solid rgba(221,214,254,0.95)' };
+const compareBarCellStyle: React.CSSProperties = { minWidth: 120 };
+const compareValueStyle: React.CSSProperties = { fontWeight: 900, color: '#6d28d9', textAlign: 'right' };
+const assumptionGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
+const assumptionItemStyle: React.CSSProperties = { padding: '12px 14px', borderRadius: 16, background: 'rgba(248,250,252,0.96)', border: '1px solid rgba(226,232,240,0.95)', display: 'grid', gap: 4, fontSize: 13, color: '#475569' };
+const emptyTextStyle: React.CSSProperties = { color: '#64748b', lineHeight: 1.75, fontSize: 14 };
+const pickerLabelStyle: React.CSSProperties = { fontSize: 13, color: '#475569', marginBottom: 6, fontWeight: 800 };
+const cardSlotStyle: React.CSSProperties = { width: 72, borderRadius: 18, border: '1px solid rgba(203,213,225,0.95)', background: 'rgba(255,255,255,0.86)', padding: 8, cursor: 'pointer', boxShadow: '0 8px 20px rgba(148,163,184,0.08)' };
+const cardSlotLabelStyle: React.CSSProperties = { fontSize: 11, color: '#6b7280', marginBottom: 6 };
+const cardFaceStyle: React.CSSProperties = { minHeight: 52, borderRadius: 14, border: '1px solid rgba(226,232,240,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, gap: 2, background: '#f8fafc' };
+const emptyCardFaceStyle: React.CSSProperties = { minHeight: 52, borderRadius: 14, border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#94a3b8', background: '#fafafa' };
+const modalOverlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 50 };
+const modalCardStyle: React.CSSProperties = { width: 'min(860px, 100%)', maxHeight: '90vh', overflow: 'auto', background: '#fff', borderRadius: 24, padding: 18, boxShadow: '0 24px 80px rgba(0,0,0,0.18)' };
+const infoModalCardStyle: React.CSSProperties = { width: 'min(760px, 100%)', maxHeight: '90vh', overflow: 'auto', background: '#fff', borderRadius: 24, padding: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.18)' };
+const modalHeaderRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' };
+const modalTitleStyle: React.CSSProperties = { fontSize: 22, fontWeight: 900, marginBottom: 4 };
+const modalSubtitleStyle: React.CSSProperties = { fontSize: 13, color: '#6b7280' };
+const modalContentBlockStyle: React.CSSProperties = { marginBottom: 18 };
+const modalParagraphStyle: React.CSSProperties = { margin: 0, lineHeight: 1.7, color: '#374151' };
+const secondaryButtonStyle: React.CSSProperties = { padding: '9px 12px', borderRadius: 12, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' };
+const textareaStyle: React.CSSProperties = { display: 'block', width: '100%', minHeight: 160, marginTop: 6, padding: '10px 12px', borderRadius: 14, border: '1px solid #d9d9d9', fontSize: 14, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' };
+const primaryLinkButtonStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '10px 14px', borderRadius: 12, background: '#111827', color: '#fff', textDecoration: 'none', fontWeight: 700 };
+const pickerStageTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#4b5563', marginBottom: 8 };
+const suitGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 };
+const suitButtonStyle: React.CSSProperties = { minHeight: 74, borderRadius: 14, border: '1px solid #d1d5db', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, cursor: 'pointer' };
+const rankGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(56px, 1fr))', gap: 8 };
+const rankButtonStyle: React.CSSProperties = { minHeight: 64, borderRadius: 12, border: '1px solid #d1d5db', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 };
+const rangeGroupTitleStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', fontWeight: 800, marginBottom: 8 };
