@@ -115,6 +115,13 @@ function actionLabel(action: AnalyzeResponse['recommendation']['action']): strin
   }
 }
 
+function getActionTheme(action: AnalyzeResponse['recommendation']['action']) {
+  if (action === 'raise') return { bg: 'linear-gradient(135deg, #dcfce7, #bbf7d0)', fg: '#166534', pill: '#166534' };
+  if (action === 'call') return { bg: 'linear-gradient(135deg, #dbeafe, #bfdbfe)', fg: '#1d4ed8', pill: '#1d4ed8' };
+  if (action === 'check') return { bg: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)', fg: '#374151', pill: '#374151' };
+  return { bg: 'linear-gradient(135deg, #fee2e2, #fecaca)', fg: '#991b1b', pill: '#991b1b' };
+}
+
 function getEquityTone(equity: number): { label: string; color: string; bg: string } {
   if (equity >= 0.65) return { label: '明显领先', color: '#166534', bg: '#dcfce7' };
   if (equity >= 0.45) return { label: '可以继续', color: '#92400e', bg: '#fef3c7' };
@@ -145,6 +152,14 @@ function getDrawLabel(value: string): string {
     'combo-draw': '组合听牌',
   };
   return map[value] ?? value;
+}
+
+function getDrawTagStyle(value: string): React.CSSProperties {
+  if (value === 'combo-draw') return { background: '#ede9fe', color: '#6d28d9' };
+  if (value === 'flush-draw') return { background: '#dbeafe', color: '#1d4ed8' };
+  if (value === 'oesd') return { background: '#dcfce7', color: '#166534' };
+  if (value === 'gutshot') return { background: '#fef3c7', color: '#92400e' };
+  return { background: '#f3f4f6', color: '#374151' };
 }
 
 function getSuitSymbol(suit: string): string {
@@ -202,15 +217,7 @@ function getSummaryLine(result: AnalyzeResponse): string {
   return '当前主要价值来自听牌结构和后续街道的改良机会。';
 }
 
-function CardSlot({
-  value,
-  label,
-  onClick,
-}: {
-  value: string;
-  label: string;
-  onClick: () => void;
-}) {
+function CardSlot({ value, label, onClick }: { value: string; label: string; onClick: () => void }) {
   const normalized = normalizeCardCode(value);
   const filled = isValidCardCode(normalized);
   const suit = filled ? normalized[1]! : '';
@@ -227,6 +234,15 @@ function CardSlot({
         <div style={emptyCardFaceStyle}>选择牌</div>
       )}
     </button>
+  );
+}
+
+function ResultCard({ title, children, accent }: { title: string; children: React.ReactNode; accent?: string }) {
+  return (
+    <div style={{ ...resultCardStyle, borderTop: accent ? `3px solid ${accent}` : '3px solid transparent' }}>
+      <h3 style={resultCardTitleStyle}>{title}</h3>
+      {children}
+    </div>
   );
 }
 
@@ -249,6 +265,7 @@ export default function HomePage() {
   const boardPreview = useMemo(() => parseCardList(boardInput), [boardInput]);
   const validation = useMemo(() => getValidationState(heroPreview, boardPreview), [heroPreview, boardPreview]);
   const resultTone = result ? getEquityTone(result.equity.equity) : null;
+  const actionTheme = result ? getActionTheme(result.recommendation.action) : null;
   const usedCards = useMemo(
     () => [...validation.normalizedHero, ...validation.normalizedBoard].filter(isValidCardCode),
     [validation.normalizedHero, validation.normalizedBoard],
@@ -348,13 +365,16 @@ export default function HomePage() {
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: 'Inter, Arial, sans-serif', maxWidth: 1120, margin: '0 auto' }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ marginBottom: 8 }}>Poker Trainer</h1>
-        <p style={{ color: '#555', marginTop: 0, lineHeight: 1.6 }}>
-          这是一个面向 <strong>单对手训练</strong> 的 MVP 分析页。你输入手牌、公牌和对手范围后，它会给出
-          <strong>胜率、当前牌力、听牌结构、以及教学型建议</strong>。
-        </p>
+    <main style={{ padding: 24, fontFamily: 'Inter, Arial, sans-serif', maxWidth: 1160, margin: '0 auto' }}>
+      <div style={heroHeaderStyle}>
+        <div>
+          <div style={eyebrowStyle}>Single-opponent training MVP</div>
+          <h1 style={{ marginBottom: 8, marginTop: 0 }}>Poker Trainer</h1>
+          <p style={{ color: '#dbe4ff', marginTop: 0, lineHeight: 1.7, maxWidth: 760 }}>
+            输入手牌、公牌和对手范围后，页面会给出 <strong>胜率、当前牌力、听牌结构与教学型建议</strong>。
+            当前版本聚焦 <strong>单对手分析</strong>，先把训练体验做顺手、做稳。
+          </p>
+        </div>
       </div>
 
       <section style={{ ...cardStyle, marginBottom: 16 }}>
@@ -372,7 +392,7 @@ export default function HomePage() {
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(320px, 420px) minmax(0, 1fr)',
-          gap: 16,
+          gap: 18,
           alignItems: 'start',
         }}
       >
@@ -478,107 +498,117 @@ export default function HomePage() {
             {loading ? '分析中…' : '开始分析'}
           </button>
 
-          {error ? (
-            <div style={{ ...noticeStyle, background: '#fff1f0', borderColor: '#ffccc7', color: '#a8071a' }}>{error}</div>
-          ) : null}
+          {error ? <div style={{ ...noticeStyle, background: '#fff1f0', borderColor: '#ffccc7', color: '#a8071a' }}>{error}</div> : null}
         </div>
 
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div style={cardStyle}>
-            <h2 style={sectionTitleStyle}>分析结论</h2>
-
-            {!result ? (
-              <div style={{ color: '#666', lineHeight: 1.7 }}>还没有结果。建议先点一个示例，或者直接在左边点牌后开始分析。</div>
-            ) : (
-              <>
-                <div
-                  style={{
-                    borderRadius: 12,
-                    padding: 16,
-                    background: resultTone?.bg,
-                    color: resultTone?.color,
-                    marginBottom: 16,
-                  }}
-                >
-                  <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 6 }}>结论先看</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>{actionLabel(result.recommendation.action)}</div>
-                  <div style={{ fontSize: 15, lineHeight: 1.6 }}>
-                    当前 equity <strong>{pct(result.equity.equity)}</strong>，整体状态属于 <strong>{resultTone?.label}</strong>。{getSummaryLine(result)}
-                  </div>
-                </div>
-
-                <div style={metricGridStyle}>
-                  <div style={metricCardStyle}>
-                    <div style={metricLabelStyle}>Equity</div>
-                    <div style={metricValueStyle}>{pct(result.equity.equity)}</div>
-                  </div>
-                  <div style={metricCardStyle}>
-                    <div style={metricLabelStyle}>Made Hand</div>
-                    <div style={metricValueStyle}>{getMadeHandLabel(result.hand.madeHand)}</div>
-                  </div>
-                  <div style={metricCardStyle}>
-                    <div style={metricLabelStyle}>Action</div>
-                    <div style={metricValueStyle}>{actionLabel(result.recommendation.action)}</div>
-                  </div>
-                  <div style={metricCardStyle}>
-                    <div style={metricLabelStyle}>Confidence</div>
-                    <div style={metricValueStyle}>{pct(result.recommendation.confidence)}</div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div style={cardStyle}>
-            <h2 style={sectionTitleStyle}>详细结果</h2>
-
-            {!result ? null : (
-              <div style={{ display: 'grid', gap: 16 }}>
-                <div style={subCardStyle}>
-                  <h3 style={subTitleStyle}>胜率拆解</h3>
-                  <ul style={listStyle}>
-                    <li>winRate: {pct(result.equity.winRate)}</li>
-                    <li>tieRate: {pct(result.equity.tieRate)}</li>
-                    <li>loseRate: {pct(result.equity.loseRate)}</li>
-                    <li>sampleCount: {result.equity.sampleCount}</li>
-                  </ul>
-                </div>
-
-                <div style={subCardStyle}>
-                  <h3 style={subTitleStyle}>牌力与听牌</h3>
-                  <ul style={listStyle}>
-                    <li>当前牌型：{getMadeHandLabel(result.hand.madeHand)}</li>
-                    <li>听牌结构：{result.hand.draws.length ? result.hand.draws.map(getDrawLabel).join('、') : '无明显听牌'}</li>
-                    <li>overcards：{result.hand.overcards}</li>
-                  </ul>
-                  <strong>说明</strong>
-                  <ul style={listStyle}>
-                    {result.hand.notes.map((note) => (
-                      <li key={note}>{note}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div style={subCardStyle}>
-                  <h3 style={subTitleStyle}>建议原因</h3>
-                  <ul style={listStyle}>
-                    {result.recommendation.reasons.map((reason) => (
-                      <li key={reason}>{reason}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div style={subCardStyle}>
-                  <h3 style={subTitleStyle}>当前分析假设</h3>
-                  <ul style={listStyle}>
-                    <li>mode: {result.assumptions.mode}</li>
-                    <li>playerCountReceived: {result.assumptions.playerCountReceived}</li>
-                    <li>playerCountApplied: {result.assumptions.playerCountApplied}</li>
-                    <li>rangeSource: {result.assumptions.rangeSource}</li>
-                  </ul>
+        <div style={{ display: 'grid', gap: 18 }}>
+          <div style={{ ...heroResultCardStyle, background: actionTheme?.bg ?? 'linear-gradient(135deg, #f8fafc, #eef2ff)', color: actionTheme?.fg ?? '#111827' }}>
+            <div style={heroResultTopRowStyle}>
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 6 }}>结论先看</div>
+                <div style={{ fontSize: 30, fontWeight: 900, marginBottom: 8 }}>{result ? actionLabel(result.recommendation.action) : '等待分析'}</div>
+                <div style={{ fontSize: 15, lineHeight: 1.7, maxWidth: 720 }}>
+                  {result
+                    ? `当前 equity ${pct(result.equity.equity)}，整体属于 ${resultTone?.label}。${getSummaryLine(result)}`
+                    : '先选择一手牌，再点击开始分析。这里会优先给出一句最重要的训练结论。'}
                 </div>
               </div>
-            )}
+              {result ? <div style={{ ...actionPillStyle, background: actionTheme?.pill }}>{actionLabel(result.recommendation.action)}</div> : null}
+            </div>
+
+            <div style={metricGridStyle}>
+              <div style={metricCardStrongStyle}>
+                <div style={metricLabelLightStyle}>Equity</div>
+                <div style={metricValueStrongStyle}>{result ? pct(result.equity.equity) : '—'}</div>
+              </div>
+              <div style={metricCardStrongStyle}>
+                <div style={metricLabelLightStyle}>Made Hand</div>
+                <div style={metricValueStrongStyle}>{result ? getMadeHandLabel(result.hand.madeHand) : '—'}</div>
+              </div>
+              <div style={metricCardStrongStyle}>
+                <div style={metricLabelLightStyle}>Confidence</div>
+                <div style={metricValueStrongStyle}>{result ? pct(result.recommendation.confidence) : '—'}</div>
+              </div>
+              <div style={metricCardStrongStyle}>
+                <div style={metricLabelLightStyle}>Samples</div>
+                <div style={metricValueStrongStyle}>{result ? result.equity.sampleCount.toLocaleString() : '—'}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={detailsGridStyle}>
+            <ResultCard title="胜率拆解" accent="#1d4ed8">
+              {result ? (
+                <>
+                  <div style={barGroupStyle}>
+                    <div style={barHeaderStyle}><span>Win</span><strong>{pct(result.equity.winRate)}</strong></div>
+                    <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(result.equity.winRate), background: '#22c55e' }} /></div>
+                  </div>
+                  <div style={barGroupStyle}>
+                    <div style={barHeaderStyle}><span>Tie</span><strong>{pct(result.equity.tieRate)}</strong></div>
+                    <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(result.equity.tieRate), background: '#94a3b8' }} /></div>
+                  </div>
+                  <div style={barGroupStyle}>
+                    <div style={barHeaderStyle}><span>Lose</span><strong>{pct(result.equity.loseRate)}</strong></div>
+                    <div style={barTrackStyle}><div style={{ ...barFillStyle, width: pct(result.equity.loseRate), background: '#ef4444' }} /></div>
+                  </div>
+                </>
+              ) : (
+                <div style={emptyTextStyle}>分析后这里会显示 win / tie / lose 的可视化拆解。</div>
+              )}
+            </ResultCard>
+
+            <ResultCard title="牌力与听牌" accent="#7c3aed">
+              {result ? (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={miniLabelStyle}>当前牌型</div>
+                    <div style={madeHandBadgeStyle}>{getMadeHandLabel(result.hand.madeHand)}</div>
+                  </div>
+                  <div>
+                    <div style={miniLabelStyle}>听牌标签</div>
+                    <div style={tagWrapStyle}>
+                      {result.hand.draws.length > 0 ? (
+                        result.hand.draws.map((draw) => (
+                          <span key={draw} style={{ ...drawTagStyle, ...getDrawTagStyle(draw) }}>
+                            {getDrawLabel(draw)}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ ...drawTagStyle, background: '#f3f4f6', color: '#6b7280' }}>无明显听牌</span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={emptyTextStyle}>分析后这里会显示 made hand 和听牌标签。</div>
+              )}
+            </ResultCard>
+
+            <ResultCard title="建议原因" accent="#ea580c">
+              {result ? (
+                <ul style={reasonListStyle}>
+                  {result.recommendation.reasons.map((reason) => (
+                    <li key={reason} style={reasonItemStyle}>{reason}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div style={emptyTextStyle}>分析后这里会显示当前动作建议背后的关键理由。</div>
+              )}
+            </ResultCard>
+
+            <ResultCard title="当前分析假设" accent="#475569">
+              {result ? (
+                <div style={assumptionGridStyle}>
+                  <div style={assumptionItemStyle}><span>mode</span><strong>{result.assumptions.mode}</strong></div>
+                  <div style={assumptionItemStyle}><span>rangeSource</span><strong>{result.assumptions.rangeSource}</strong></div>
+                  <div style={assumptionItemStyle}><span>received</span><strong>{result.assumptions.playerCountReceived}</strong></div>
+                  <div style={assumptionItemStyle}><span>applied</span><strong>{result.assumptions.playerCountApplied}</strong></div>
+                </div>
+              ) : (
+                <div style={emptyTextStyle}>分析后这里会提醒你当前用的是单对手假设。</div>
+              )}
+            </ResultCard>
           </div>
         </div>
       </section>
@@ -657,9 +687,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>
-              已占用牌会以灰色禁用展示，不可被选中。先选花色，再选点数。
-            </div>
+            <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>已占用牌会以灰色禁用展示，不可被选中。先选花色，再选点数。</div>
           </div>
         </div>
       ) : null}
@@ -667,25 +695,82 @@ export default function HomePage() {
   );
 }
 
+const heroHeaderStyle: React.CSSProperties = {
+  background: 'linear-gradient(135deg, #0f172a, #1e3a8a)',
+  color: '#fff',
+  borderRadius: 18,
+  padding: '24px 26px',
+  marginBottom: 18,
+  boxShadow: '0 18px 40px rgba(15, 23, 42, 0.16)',
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: 'inline-block',
+  fontSize: 12,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  padding: '4px 8px',
+  borderRadius: 999,
+  background: 'rgba(255,255,255,0.12)',
+  marginBottom: 12,
+};
+
 const cardStyle: React.CSSProperties = {
   background: '#fff',
   border: '1px solid #e5e7eb',
-  borderRadius: 14,
+  borderRadius: 16,
   padding: 18,
-  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+  boxShadow: '0 10px 30px rgba(15,23,42,0.05)',
 };
 
-const subCardStyle: React.CSSProperties = {
-  background: '#fafafa',
-  border: '1px solid #eee',
-  borderRadius: 10,
-  padding: 12,
+const heroResultCardStyle: React.CSSProperties = {
+  borderRadius: 18,
+  padding: 20,
+  boxShadow: '0 18px 40px rgba(15, 23, 42, 0.08)',
+};
+
+const heroResultTopRowStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 16,
+  alignItems: 'flex-start',
+  marginBottom: 18,
+  flexWrap: 'wrap',
+};
+
+const actionPillStyle: React.CSSProperties = {
+  color: '#fff',
+  padding: '8px 14px',
+  borderRadius: 999,
+  fontSize: 13,
+  fontWeight: 800,
+  whiteSpace: 'nowrap',
 };
 
 const sectionTitleStyle: React.CSSProperties = {
   marginTop: 0,
   marginBottom: 16,
   fontSize: 20,
+};
+
+const resultCardStyle: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #e5e7eb',
+  borderRadius: 16,
+  padding: 16,
+  boxShadow: '0 8px 24px rgba(15, 23, 42, 0.04)',
+};
+
+const resultCardTitleStyle: React.CSSProperties = {
+  marginTop: 0,
+  marginBottom: 12,
+  fontSize: 16,
+};
+
+const detailsGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+  gap: 16,
 };
 
 const subTitleStyle: React.CSSProperties = {
@@ -705,7 +790,7 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   marginTop: 6,
   padding: '10px 12px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: '1px solid #d9d9d9',
   fontSize: 14,
   boxSizing: 'border-box',
@@ -715,13 +800,14 @@ const buttonStyle: React.CSSProperties = {
   width: '100%',
   marginTop: 12,
   padding: '12px 16px',
-  borderRadius: 10,
+  borderRadius: 12,
   border: 'none',
-  background: '#111827',
+  background: 'linear-gradient(135deg, #111827, #1f2937)',
   color: '#fff',
   fontSize: 15,
   fontWeight: 700,
   cursor: 'pointer',
+  boxShadow: '0 10px 20px rgba(17, 24, 39, 0.18)',
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -739,6 +825,7 @@ const chipButtonStyle: React.CSSProperties = {
   background: '#fff',
   cursor: 'pointer',
   fontSize: 13,
+  boxShadow: '0 2px 6px rgba(15,23,42,0.05)',
 };
 
 const hintStyle: React.CSSProperties = {
@@ -751,7 +838,7 @@ const hintStyle: React.CSSProperties = {
 const noticeStyle: React.CSSProperties = {
   marginTop: 12,
   padding: 12,
-  borderRadius: 8,
+  borderRadius: 10,
   border: '1px solid',
 };
 
@@ -767,22 +854,119 @@ const metricGridStyle: React.CSSProperties = {
   gap: 12,
 };
 
-const metricCardStyle: React.CSSProperties = {
-  background: '#f8fafc',
-  border: '1px solid #e5e7eb',
-  borderRadius: 10,
-  padding: 12,
+const metricCardStrongStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.55)',
+  border: '1px solid rgba(255,255,255,0.45)',
+  borderRadius: 14,
+  padding: 14,
+  backdropFilter: 'blur(4px)',
 };
 
-const metricLabelStyle: React.CSSProperties = {
+const metricLabelLightStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#6b7280',
+  opacity: 0.75,
   marginBottom: 6,
 };
 
-const metricValueStyle: React.CSSProperties = {
-  fontSize: 20,
+const metricValueStrongStyle: React.CSSProperties = {
+  fontSize: 24,
+  fontWeight: 900,
+};
+
+const barGroupStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 6,
+  marginBottom: 10,
+};
+
+const barHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  fontSize: 13,
+  color: '#374151',
+};
+
+const barTrackStyle: React.CSSProperties = {
+  height: 10,
+  background: '#e5e7eb',
+  borderRadius: 999,
+  overflow: 'hidden',
+};
+
+const barFillStyle: React.CSSProperties = {
+  height: '100%',
+  borderRadius: 999,
+};
+
+const madeHandBadgeStyle: React.CSSProperties = {
+  display: 'inline-block',
+  background: '#111827',
+  color: '#fff',
+  borderRadius: 999,
+  padding: '8px 12px',
   fontWeight: 800,
+  fontSize: 13,
+};
+
+const tagWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+};
+
+const drawTagStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '7px 10px',
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const miniLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#6b7280',
+  marginBottom: 8,
+};
+
+const reasonListStyle: React.CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: 0,
+  display: 'grid',
+  gap: 10,
+};
+
+const reasonItemStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#fff7ed',
+  border: '1px solid #fed7aa',
+  color: '#9a3412',
+  lineHeight: 1.6,
+};
+
+const assumptionGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 10,
+};
+
+const assumptionItemStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#f8fafc',
+  border: '1px solid #e2e8f0',
+  display: 'grid',
+  gap: 4,
+  fontSize: 13,
+  color: '#475569',
+};
+
+const emptyTextStyle: React.CSSProperties = {
+  color: '#6b7280',
+  lineHeight: 1.7,
+  fontSize: 14,
 };
 
 const pickerLabelStyle: React.CSSProperties = {
@@ -853,7 +1037,6 @@ const modalCardStyle: React.CSSProperties = {
   padding: 18,
   boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
 };
-
 
 const pickerStageTitleStyle: React.CSSProperties = {
   fontSize: 13,
