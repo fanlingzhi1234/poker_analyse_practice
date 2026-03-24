@@ -56,17 +56,35 @@ Poker Trainer 是一个面向 **单对手德州扑克训练** 的学习工具。
 2. `api` 返回 `futureHandDistribution`
 3. `web` 展示最终牌型分布可视化
 
-### V2 Phase 2：对手范围系统（当前已推进一大段）
+### V2 Phase 2：对手范围系统（已完成可交付版本）
 已完成：
 - 正式 preset 数据升级
 - 中文名 / 中文解释 / 宽度标签 / 类别 / 代表牌型 / 训练提示
 - `/api/ranges/presets`
 - 范围说明卡
 - 中文快捷范围 chips
+- 常用范围 5 项收口
+- “更多范围”折叠区
 - 按类别展示更多范围
 - 分类筛选器（当前基础版）
 - 高级 Range Text 折叠
 - 范围对比面板
+
+### V2 Phase 3：建议系统与解释系统增强（已完成可交付版本）
+已完成：
+- API 内部 heuristic 升级：street / board texture / range strength / pressure bucket
+- recommendation 逻辑增强，不再只依赖 equity 阈值
+- explanation 结构增强
+- 新增“如果对手更紧 / 更宽”的训练提示
+- 教练解释区已接入新的训练提示展示
+
+### V2 Phase 4：训练工作台体验增强（已完成可交付版本）
+已完成：
+- 工作台式单页布局（左输入 / 右结果）
+- 第一屏固定核心结果
+- 快速 / 标准 / 精细模式
+- 一键重置 / Turn & River 清除 / 快速示例
+- 结果区 Accordion 收口
 
 ---
 
