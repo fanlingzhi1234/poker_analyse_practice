@@ -39,7 +39,6 @@ const validRanks = new Set(['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q
 const validSuits = new Set(['s', 'h', 'd', 'c']);
 const rankOrder = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'] as const;
 const suitOrder = ['s', 'h', 'd', 'c'] as const;
-const allCards = rankOrder.flatMap((rank) => suitOrder.map((suit) => `${rank}${suit}`));
 
 const exampleScenarios = {
   default: {
@@ -244,6 +243,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
+  const [pickerSuit, setPickerSuit] = useState<string | null>(null);
 
   const heroPreview = useMemo(() => parseCardList(heroHandInput), [heroHandInput]);
   const boardPreview = useMemo(() => parseCardList(boardInput), [boardInput]);
@@ -266,6 +266,7 @@ export default function HomePage() {
     setResult(null);
     setError(null);
     setPickerTarget(null);
+    setPickerSuit(null);
   }
 
   function clearSlot(target: PickerTarget) {
@@ -295,6 +296,12 @@ export default function HomePage() {
     }
 
     setPickerTarget(null);
+    setPickerSuit(null);
+  }
+
+  function getPickerTargetLabel(target: PickerTarget | null) {
+    if (!target) return '';
+    return target.area === 'hero' ? `Hero 第 ${target.index + 1} 张` : `Board 第 ${target.index + 1} 张`;
   }
 
   async function handleAnalyze() {
@@ -378,8 +385,8 @@ export default function HomePage() {
               <div>
                 <div style={pickerLabelStyle}>Hero Hand</div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <CardSlot value={heroPreview[0] ?? ''} label="H1" onClick={() => setPickerTarget({ area: 'hero', index: 0 })} />
-                  <CardSlot value={heroPreview[1] ?? ''} label="H2" onClick={() => setPickerTarget({ area: 'hero', index: 1 })} />
+                  <CardSlot value={heroPreview[0] ?? ''} label="H1" onClick={() => { setPickerTarget({ area: 'hero', index: 0 }); setPickerSuit(null); }} />
+                  <CardSlot value={heroPreview[1] ?? ''} label="H2" onClick={() => { setPickerTarget({ area: 'hero', index: 1 }); setPickerSuit(null); }} />
                 </div>
               </div>
 
@@ -391,7 +398,7 @@ export default function HomePage() {
                       key={index}
                       value={boardPreview[index] ?? ''}
                       label={`B${index + 1}`}
-                      onClick={() => setPickerTarget({ area: 'board', index })}
+                      onClick={() => { setPickerTarget({ area: 'board', index }); setPickerSuit(null); }}
                     />
                   ))}
                 </div>
@@ -577,54 +584,82 @@ export default function HomePage() {
       </section>
 
       {pickerTarget ? (
-        <div style={modalOverlayStyle} onClick={() => setPickerTarget(null)}>
+        <div style={modalOverlayStyle} onClick={() => { setPickerTarget(null); setPickerSuit(null); }}>
           <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 18 }}>选择牌面</div>
-                <div style={{ color: '#666', fontSize: 13 }}>
-                  {pickerTarget.area === 'hero' ? `Hero 第 ${pickerTarget.index + 1} 张` : `Board 第 ${pickerTarget.index + 1} 张`}
-                </div>
+                <div style={{ color: '#666', fontSize: 13 }}>正在选择：{getPickerTargetLabel(pickerTarget)}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" style={secondaryButtonStyle} onClick={() => clearSlot(pickerTarget)}>
                   清空这个位置
                 </button>
-                <button type="button" style={secondaryButtonStyle} onClick={() => setPickerTarget(null)}>
+                <button type="button" style={secondaryButtonStyle} onClick={() => { setPickerTarget(null); setPickerSuit(null); }}>
                   关闭
                 </button>
               </div>
             </div>
 
-            <div style={pickerGridStyle}>
-              {allCards.map((card) => {
-                const normalized = normalizeCardCode(card);
-                const suit = normalized[1]!;
-                const currentValue = pickerTarget.area === 'hero' ? heroPreview[pickerTarget.index] ?? '' : boardPreview[pickerTarget.index] ?? '';
-                const isCurrent = normalizeCardCode(currentValue) === normalized;
-                const isUsedElsewhere = usedCards.includes(normalized) && !isCurrent;
+            <div style={{ display: 'grid', gap: 16 }}>
+              <div>
+                <div style={pickerStageTitleStyle}>第一步：先选花色</div>
+                <div style={suitGridStyle}>
+                  {suitOrder.map((suit) => (
+                    <button
+                      key={suit}
+                      type="button"
+                      onClick={() => setPickerSuit(suit)}
+                      style={{
+                        ...suitButtonStyle,
+                        color: getSuitColor(suit),
+                        borderColor: pickerSuit === suit ? '#2563eb' : '#d1d5db',
+                        background: pickerSuit === suit ? '#eff6ff' : '#fff',
+                      }}
+                    >
+                      <span style={{ fontSize: 24 }}>{getSuitSymbol(suit)}</span>
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>{suit === 's' ? '黑桃' : suit === 'h' ? '红桃' : suit === 'd' ? '方块' : '梅花'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                return (
-                  <button
-                    key={card}
-                    type="button"
-                    disabled={isUsedElsewhere}
-                    onClick={() => applyCardToTarget(normalized)}
-                    style={{
-                      ...pickerCardStyle,
-                      opacity: isUsedElsewhere ? 0.35 : 1,
-                      borderColor: isCurrent ? '#2563eb' : '#d1d5db',
-                      background: isCurrent ? '#eff6ff' : '#fff',
-                      color: getSuitColor(suit),
-                    }}
-                  >
-                    <span>{normalized[0]}</span>
-                    <span>{getSuitSymbol(suit)}</span>
-                  </button>
-                );
-              })}
+              <div>
+                <div style={pickerStageTitleStyle}>第二步：再选点数</div>
+                <div style={rankGridStyle}>
+                  {rankOrder.map((rank) => {
+                    const candidate = pickerSuit ? `${rank}${pickerSuit}` : '';
+                    const currentValue = pickerTarget.area === 'hero' ? heroPreview[pickerTarget.index] ?? '' : boardPreview[pickerTarget.index] ?? '';
+                    const isCurrent = candidate && normalizeCardCode(currentValue) === candidate;
+                    const isUsedElsewhere = candidate ? usedCards.includes(candidate) && !isCurrent : false;
+                    const disabled = !pickerSuit || isUsedElsewhere;
+
+                    return (
+                      <button
+                        key={rank}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => pickerSuit && applyCardToTarget(candidate)}
+                        style={{
+                          ...rankButtonStyle,
+                          background: isUsedElsewhere ? '#e5e7eb' : isCurrent ? '#eff6ff' : pickerSuit ? '#fff' : '#f9fafb',
+                          color: pickerSuit ? getSuitColor(pickerSuit) : '#9ca3af',
+                          borderColor: isCurrent ? '#2563eb' : '#d1d5db',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <span style={{ fontSize: 20, fontWeight: 800 }}>{rank}</span>
+                        <span style={{ fontSize: 18 }}>{pickerSuit ? getSuitSymbol(pickerSuit) : '·'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-            <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>已被当前 Hero/Board 占用的牌会自动禁用，避免重复选牌。</div>
+
+            <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>
+              已占用牌会以灰色禁用展示，不可被选中。先选花色，再选点数。
+            </div>
           </div>
         </div>
       ) : null}
@@ -819,20 +854,44 @@ const modalCardStyle: React.CSSProperties = {
   boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
 };
 
-const pickerGridStyle: React.CSSProperties = {
+
+const pickerStageTitleStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 700,
+  color: '#4b5563',
+  marginBottom: 8,
+};
+
+const suitGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+  gap: 10,
+};
+
+const suitButtonStyle: React.CSSProperties = {
+  minHeight: 74,
+  borderRadius: 12,
+  border: '1px solid #d1d5db',
+  background: '#fff',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 4,
+  cursor: 'pointer',
+};
+
+const rankGridStyle: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(56px, 1fr))',
   gap: 8,
 };
 
-const pickerCardStyle: React.CSSProperties = {
+const rankButtonStyle: React.CSSProperties = {
   minHeight: 64,
   borderRadius: 10,
   border: '1px solid #d1d5db',
   background: '#fff',
-  fontSize: 22,
-  fontWeight: 800,
-  cursor: 'pointer',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
