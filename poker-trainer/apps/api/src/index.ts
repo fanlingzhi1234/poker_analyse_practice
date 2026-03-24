@@ -1,6 +1,6 @@
 import http from 'node:http';
 
-import { analyzeDraws, calculateEquityMonteCarlo, createCard } from '@poker/poker-core';
+import { analyzeDraws, calculateEquityMonteCarlo, calculateFutureHandDistribution, createCard } from '@poker/poker-core';
 import { getRangePreset, listRangePresets, parseRange } from '@poker/range-parser';
 
 export interface AnalyzeRequest {
@@ -33,6 +33,11 @@ export interface AnalyzeResponse {
     draws: string[];
     overcards: number;
     notes: string[];
+  };
+  futureHandDistribution: {
+    distribution: Record<string, number>;
+    sampleCount: number;
+    mode: 'estimated';
   };
   recommendation: {
     action: 'fold' | 'check' | 'call' | 'raise';
@@ -216,15 +221,24 @@ export function analyzeScenario(request: AnalyzeRequest): AnalyzeResponse {
   const boardCards = board.map((code) => createCard(code));
   const villainRange = resolveVillainRange(request);
 
+  const analysisIterations = request.iterations ?? 5000;
+  const analysisSeed = request.rngSeed ?? 1337;
+
   const equity = calculateEquityMonteCarlo({
     heroCards,
     boardCards,
     villainRange: villainRange.combos,
-    iterations: request.iterations ?? 5000,
-    rngSeed: request.rngSeed ?? 1337,
+    iterations: analysisIterations,
+    rngSeed: analysisSeed,
   });
 
   const hand = analyzeDraws(heroCards, boardCards);
+  const futureHandDistribution = calculateFutureHandDistribution({
+    heroCards,
+    boardCards,
+    iterations: analysisIterations,
+    rngSeed: analysisSeed,
+  });
   const recommendation = buildRecommendation({
     boardCount: boardCards.length,
     madeHand: hand.madeHand,
@@ -248,6 +262,7 @@ export function analyzeScenario(request: AnalyzeRequest): AnalyzeResponse {
     },
     equity,
     hand,
+    futureHandDistribution,
     recommendation,
     explanation,
   };

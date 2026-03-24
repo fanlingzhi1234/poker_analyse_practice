@@ -27,6 +27,10 @@ test('analyzeScenario returns single-opponent assumptions and normalized equity'
   assert.equal(Array.isArray(result.explanation.strengths), true);
   assert.equal(Array.isArray(result.explanation.risks), true);
   assert.equal(Array.isArray(result.explanation.focus), true);
+
+  const distributionSum = Object.values(result.futureHandDistribution.distribution).reduce((acc, value) => acc + value, 0);
+  assert.equal(Math.abs(distributionSum - 1) < 1e-9, true);
+  assert.equal(result.futureHandDistribution.sampleCount, 2000);
 });
 
 test('analyzeScenario supports custom range text', () => {
@@ -40,6 +44,7 @@ test('analyzeScenario supports custom range text', () => {
 
   assert.equal(result.assumptions.rangeSource, 'text');
   assert.equal(result.equity.sampleCount, 1000);
+  assert.equal(result.futureHandDistribution.sampleCount, 1000);
 });
 
 test('analyzeScenario rejects invalid hero hand shape', () => {
