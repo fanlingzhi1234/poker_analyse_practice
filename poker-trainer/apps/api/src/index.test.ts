@@ -23,6 +23,10 @@ test('analyzeScenario returns single-opponent assumptions and normalized equity'
   assert.equal(result.equity.sampleCount, 2000);
   assert.equal(Array.isArray(result.hand.notes), true);
   assert.equal(Array.isArray(result.recommendation.reasons), true);
+  assert.equal(typeof result.explanation.headline, 'string');
+  assert.equal(Array.isArray(result.explanation.strengths), true);
+  assert.equal(Array.isArray(result.explanation.risks), true);
+  assert.equal(Array.isArray(result.explanation.focus), true);
 });
 
 test('analyzeScenario supports custom range text', () => {

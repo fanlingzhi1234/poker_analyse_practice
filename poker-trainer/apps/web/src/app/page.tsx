@@ -28,6 +28,13 @@ type AnalyzeResponse = {
     confidence: number;
     reasons: string[];
   };
+  explanation: {
+    headline: string;
+    summary: string;
+    strengths: string[];
+    risks: string[];
+    focus: string[];
+  };
 };
 
 type PickerTarget =
@@ -517,7 +524,7 @@ export default function HomePage() {
                 <div style={{ fontSize: 30, fontWeight: 900, marginBottom: 8 }}>{result ? actionLabel(result.recommendation.action) : '等待分析'}</div>
                 <div style={{ fontSize: 15, lineHeight: 1.7, maxWidth: 720 }}>
                   {result
-                    ? `当前 equity ${pct(result.equity.equity)}，整体属于 ${resultTone?.label}。${getSummaryLine(result)}`
+                    ? `${result.explanation.headline} 当前 equity ${pct(result.equity.equity)}，整体属于 ${resultTone?.label}。`
                     : '先选择一手牌，再点击开始分析。这里会优先给出一句最重要的训练结论。'}
                 </div>
               </div>
@@ -593,15 +600,56 @@ export default function HomePage() {
               )}
             </ResultCard>
 
-            <ResultCard title="建议原因" accent="#ea580c">
+            <ResultCard title="教练解释" accent="#ea580c">
               {result ? (
-                <ul style={reasonListStyle}>
-                  {result.recommendation.reasons.map((reason) => (
-                    <li key={reason} style={reasonItemStyle}>{reason}</li>
-                  ))}
-                </ul>
+                <div style={{ display: 'grid', gap: 14 }}>
+                  <div>
+                    <div style={miniLabelStyle}>建议原因</div>
+                    <ul style={reasonListStyle}>
+                      {result.recommendation.reasons.map((reason) => (
+                        <li key={reason} style={reasonItemStyle}>{reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div>
+                    <div style={miniLabelStyle}>当前优势</div>
+                    <div style={insightWrapStyle}>
+                      {result.explanation.strengths.map((item) => (
+                        <div key={item} style={{ ...insightCardStyle, background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
+                          <strong style={{ display: 'block', marginBottom: 4 }}>优势</strong>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={miniLabelStyle}>当前风险</div>
+                    <div style={insightWrapStyle}>
+                      {result.explanation.risks.map((item) => (
+                        <div key={item} style={{ ...insightCardStyle, background: '#fff1f2', borderColor: '#fecdd3', color: '#9f1239' }}>
+                          <strong style={{ display: 'block', marginBottom: 4 }}>风险</strong>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={miniLabelStyle}>训练重点</div>
+                    <div style={insightWrapStyle}>
+                      {result.explanation.focus.map((item) => (
+                        <div key={item} style={{ ...insightCardStyle, background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}>
+                          <strong style={{ display: 'block', marginBottom: 4 }}>重点</strong>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <div style={emptyTextStyle}>分析后这里会显示当前动作建议背后的关键理由。</div>
+                <div style={emptyTextStyle}>分析后这里会显示更像教练口吻的解释，以及当前优势、风险和训练重点。</div>
               )}
             </ResultCard>
 
@@ -1276,4 +1324,27 @@ const primaryLinkButtonStyle: React.CSSProperties = {
   color: '#fff',
   textDecoration: 'none',
   fontWeight: 700,
+};
+
+const summaryPanelStyle: React.CSSProperties = {
+  marginBottom: 14,
+  padding: '12px 14px',
+  borderRadius: 12,
+  background: 'rgba(255,255,255,0.55)',
+  border: '1px solid rgba(255,255,255,0.45)',
+  fontSize: 14,
+  lineHeight: 1.7,
+};
+
+const insightWrapStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 10,
+};
+
+const insightCardStyle: React.CSSProperties = {
+  padding: '12px 14px',
+  borderRadius: 12,
+  border: '1px solid',
+  lineHeight: 1.65,
+  fontSize: 14,
 };

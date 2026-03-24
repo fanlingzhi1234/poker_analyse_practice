@@ -39,6 +39,39 @@ export interface AnalyzeResponse {
     confidence: number;
     reasons: string[];
   };
+  explanation: {
+    headline: string;
+    summary: string;
+    strengths: string[];
+    risks: string[];
+    focus: string[];
+  };
+}
+
+function toChineseHandLabel(value: string): string {
+  const map: Record<string, string> = {
+    'high-card': '高牌',
+    'one-pair': '一对',
+    'two-pair': '两对',
+    'three-of-a-kind': '三条',
+    straight: '顺子',
+    flush: '同花',
+    'full-house': '葫芦',
+    'four-of-a-kind': '四条',
+    'straight-flush': '同花顺',
+  };
+  return map[value] ?? value;
+}
+
+function toChineseDrawLabel(value: string): string {
+  const map: Record<string, string> = {
+    'flush-draw': '同花听牌',
+    oesd: '两头顺听牌',
+    gutshot: '卡顺听牌',
+    overcards: '高张优势',
+    'combo-draw': '组合听牌',
+  };
+  return map[value] ?? value;
 }
 
 function buildRecommendation(input: {
@@ -82,6 +115,76 @@ function buildRecommendation(input: {
   }
 
   return { action, confidence, reasons };
+}
+
+function buildExplanation(input: {
+  equity: number;
+  madeHand: string;
+  draws: string[];
+  boardCount: number;
+  recommendation: AnalyzeResponse['recommendation'];
+}): AnalyzeResponse['explanation'] {
+  const handLabel = toChineseHandLabel(input.madeHand);
+  const drawLabels = input.draws.map(toChineseDrawLabel);
+  const strengths: string[] = [];
+  const risks: string[] = [];
+  const focus: string[] = [];
+
+  if (input.equity >= 0.65) {
+    strengths.push('当前权益明显领先，具备较强继续价值');
+  } else if (input.equity >= 0.45) {
+    strengths.push('当前权益处于可继续区间，不算明显落后');
+  } else {
+    risks.push('当前权益偏低，继续投入需要更强理由');
+  }
+
+  if (input.madeHand !== 'high-card') {
+    strengths.push(`当前已经形成${handLabel}，不属于纯空气牌`);
+  } else {
+    risks.push('当前还没成手，主要依赖后续街道改良');
+  }
+
+  if (drawLabels.length > 0) {
+    strengths.push(`拥有${drawLabels.join('、')}，后续改良空间存在`);
+  } else {
+    risks.push('没有明显听牌支撑，容错率较低');
+  }
+
+  if (input.draws.includes('combo-draw')) {
+    focus.push('重点看转牌是否继续增强你的组合听牌或直接成牌');
+  } else if (input.draws.includes('flush-draw') || input.draws.includes('oesd')) {
+    focus.push('重点关注下一张牌是否让你获得更强成牌机会');
+  } else if (input.madeHand !== 'high-card') {
+    focus.push('重点判断当前已成牌是否足够承受后续压力');
+  } else {
+    focus.push('如果没有额外赔率或读牌优势，谨慎继续会更稳妥');
+  }
+
+  if (input.boardCount === 0) {
+    focus.push('当前属于翻前近似训练，结果更适合用来校准起手牌感觉');
+  }
+
+  const headline =
+    input.recommendation.action === 'raise'
+      ? '这手牌当前更适合主动施压'
+      : input.recommendation.action === 'call'
+        ? '这手牌当前更像一手可继续观察的牌'
+        : input.recommendation.action === 'check'
+          ? '这手牌当前更适合控制节奏'
+          : '这手牌当前更偏向谨慎放弃';
+
+  const summary =
+    input.madeHand === 'high-card'
+      ? `当前还是${handLabel}，${drawLabels.length ? `但带有${drawLabels.join('、')}。` : '而且缺少明确听牌。'}整体建议偏向 ${input.recommendation.action}。`
+      : `当前已经形成${handLabel}。${drawLabels.length ? `同时还带有${drawLabels.join('、')}。` : ''}整体建议偏向 ${input.recommendation.action}。`;
+
+  return {
+    headline,
+    summary,
+    strengths,
+    risks,
+    focus,
+  };
 }
 
 function resolveVillainRange(request: AnalyzeRequest) {
@@ -128,6 +231,13 @@ export function analyzeScenario(request: AnalyzeRequest): AnalyzeResponse {
     draws: hand.draws,
     equity: equity.equity,
   });
+  const explanation = buildExplanation({
+    equity: equity.equity,
+    madeHand: hand.madeHand,
+    draws: hand.draws,
+    boardCount: boardCards.length,
+    recommendation,
+  });
 
   return {
     assumptions: {
@@ -139,6 +249,7 @@ export function analyzeScenario(request: AnalyzeRequest): AnalyzeResponse {
     equity,
     hand,
     recommendation,
+    explanation,
   };
 }
 
