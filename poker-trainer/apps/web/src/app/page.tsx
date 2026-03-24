@@ -269,6 +269,7 @@ export default function HomePage() {
   const [rangePreset, setRangePreset] = useState<(typeof presetOptions)[number]>(exampleScenarios.default.rangePreset);
   const [rangeText, setRangeText] = useState(exampleScenarios.default.rangeText);
   const [rangePresets, setRangePresets] = useState<RangePresetMeta[]>([]);
+  const [showAdvancedRange, setShowAdvancedRange] = useState(false);
   const [iterations, setIterations] = useState(exampleScenarios.default.iterations);
   const [playerCount, setPlayerCount] = useState(exampleScenarios.default.playerCount);
   const [rngSeed, setRngSeed] = useState(exampleScenarios.default.rngSeed);
@@ -553,10 +554,28 @@ export default function HomePage() {
                   </select>
                 </label>
 
-                <label style={labelStyle}>
-                  Range Text（高级，可选；填写后优先于 preset）
-                  <input style={inputStyle} value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="TT+,AJs+,KQo" />
-                </label>
+                <div style={advancedRangePanelStyle}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedRange((value) => !value)}
+                    style={advancedRangeToggleStyle}
+                  >
+                    <span>高级范围输入</span>
+                    <span style={{ color: '#6b7280', fontSize: 12 }}>{showAdvancedRange ? '收起' : '展开'}</span>
+                  </button>
+
+                  {showAdvancedRange ? (
+                    <div style={advancedRangeBodyStyle}>
+                      <label style={labelStyle}>
+                        Range Text（高级，可选；填写后优先于 preset）
+                        <input style={inputStyle} value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder="TT+,AJs+,KQo" />
+                      </label>
+                      <div style={advancedRangeHintStyle}>
+                        适合熟悉德州扑克范围简写的用户。示例：<code>TT+</code>、<code>AJs+</code>、<code>KQo</code>、<code>76s-54s</code>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               <small style={hintStyle}>Hero / Board 也可以直接手输，点牌器和文本输入会同步。</small>
@@ -1529,4 +1548,40 @@ const quickPresetChipStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: 13,
   fontWeight: 700,
+};
+
+const advancedRangePanelStyle: React.CSSProperties = {
+  border: '1px solid #e5e7eb',
+  borderRadius: 14,
+  background: '#fcfcfd',
+  overflow: 'hidden',
+};
+
+const advancedRangeToggleStyle: React.CSSProperties = {
+  width: '100%',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '12px 14px',
+  border: 'none',
+  background: 'transparent',
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: 'pointer',
+  textAlign: 'left',
+};
+
+const advancedRangeBodyStyle: React.CSSProperties = {
+  padding: '0 14px 14px 14px',
+  borderTop: '1px solid #eef2f7',
+};
+
+const advancedRangeHintStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#f8fafc',
+  border: '1px solid #e2e8f0',
+  color: '#475569',
+  lineHeight: 1.65,
+  fontSize: 13,
 };
