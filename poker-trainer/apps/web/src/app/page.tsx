@@ -281,6 +281,11 @@ export default function HomePage() {
   const [rangeText, setRangeText] = useState(exampleScenarios.default.rangeText);
   const [rangePresets, setRangePresets] = useState<RangePresetMeta[]>([]);
   const [showAdvancedRange, setShowAdvancedRange] = useState(false);
+  const [filterPocketPairs, setFilterPocketPairs] = useState(false);
+  const [filterBroadway, setFilterBroadway] = useState(false);
+  const [filterSuited, setFilterSuited] = useState(false);
+  const [filterConnectors, setFilterConnectors] = useState(false);
+  const [filterAces, setFilterAces] = useState(false);
   const [iterations, setIterations] = useState(exampleScenarios.default.iterations);
   const [playerCount, setPlayerCount] = useState(exampleScenarios.default.playerCount);
   const [rngSeed, setRngSeed] = useState(exampleScenarios.default.rngSeed);
@@ -351,6 +356,18 @@ export default function HomePage() {
     return groups;
   }, [rangePresets]);
 
+  const filterRangeText = useMemo(() => {
+    const tokens: string[] = [];
+    if (filterPocketPairs) tokens.push('22+');
+    if (filterBroadway) tokens.push('AKs,AQs,AJs,ATs,KQs,KJs,KTs,QJs,QTs,JTs,AKo,AQo,AJo,ATo,KQo,KJo,KTo,QJo,QTo,JTo');
+    if (filterSuited) tokens.push('A2s+,K2s+,Q2s+,J2s+,T2s+,92s+,82s+,72s+,62s+,52s+,42s+,32s');
+    if (filterConnectors) tokens.push('98s,87s,76s,65s,54s');
+    if (filterAces) tokens.push('A2s+,A2o+');
+    return tokens.join(',');
+  }, [filterPocketPairs, filterBroadway, filterSuited, filterConnectors, filterAces]);
+
+  const usingFilterRange = Boolean(filterRangeText);
+
   function applyScenario(key: keyof typeof exampleScenarios) {
     const scenario = exampleScenarios[key];
     setHeroHandInput(scenario.heroHandInput);
@@ -416,7 +433,7 @@ export default function HomePage() {
         heroHand: validation.normalizedHero,
         board: validation.normalizedBoard,
         rangePreset,
-        rangeText: rangeText.trim() || undefined,
+        rangeText: (filterRangeText || rangeText.trim()) || undefined,
         iterations: Number(iterations),
         rngSeed: Number(rngSeed),
         playerCount: Number(playerCount),
@@ -534,6 +551,11 @@ export default function HomePage() {
                               onClick={() => {
                                 setRangePreset(preset.name as (typeof presetOptions)[number]);
                                 setRangeText('');
+                                setFilterPocketPairs(false);
+                                setFilterBroadway(false);
+                                setFilterSuited(false);
+                                setFilterConnectors(false);
+                                setFilterAces(false);
                               }}
                               style={{
                                 ...quickPresetChipStyle,
@@ -580,6 +602,11 @@ export default function HomePage() {
                                   onClick={() => {
                                     setRangePreset(preset.name as (typeof presetOptions)[number]);
                                     setRangeText('');
+                                    setFilterPocketPairs(false);
+                                    setFilterBroadway(false);
+                                    setFilterSuited(false);
+                                    setFilterConnectors(false);
+                                    setFilterAces(false);
                                   }}
                                   style={{
                                     ...quickPresetChipStyle,
@@ -605,6 +632,39 @@ export default function HomePage() {
                       ))}
                     </select>
                   )}
+                </div>
+
+                <div style={filterPanelStyle}>
+                  <div style={{ fontWeight: 700, marginBottom: 10 }}>分类筛选器</div>
+                  <div style={filterChipWrapStyle}>
+                    {[
+                      ['口袋对子', filterPocketPairs, setFilterPocketPairs],
+                      ['百老汇牌', filterBroadway, setFilterBroadway],
+                      ['同花牌', filterSuited, setFilterSuited],
+                      ['同花连张', filterConnectors, setFilterConnectors],
+                      ['A牌结构', filterAces, setFilterAces],
+                    ].map(([label, active, setter]) => (
+                      <button
+                        key={label as string}
+                        type="button"
+                        onClick={() => {
+                          (setter as React.Dispatch<React.SetStateAction<boolean>>)((value) => !value);
+                          setRangeText('');
+                        }}
+                        style={{
+                          ...filterChipStyle,
+                          background: active ? '#111827' : '#fff',
+                          color: active ? '#fff' : '#111827',
+                          borderColor: active ? '#111827' : '#d1d5db',
+                        }}
+                      >
+                        {label as string}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={filterSummaryStyle}>
+                    {usingFilterRange ? (<>当前筛选生成范围：<code>{filterRangeText}</code></>) : '未启用分类筛选器，当前仍按 preset 或高级输入进行分析。'}
+                  </div>
                 </div>
 
                 <div style={advancedRangePanelStyle}>
@@ -1668,4 +1728,34 @@ const rangeGroupTitleStyle: React.CSSProperties = {
   color: '#6b7280',
   fontWeight: 800,
   marginBottom: 8,
+};
+
+const filterPanelStyle: React.CSSProperties = {
+  border: '1px solid #e5e7eb',
+  borderRadius: 14,
+  background: '#ffffff',
+  padding: '14px',
+};
+
+const filterChipWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+  marginBottom: 10,
+};
+
+const filterChipStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  borderRadius: 999,
+  border: '1px solid #d1d5db',
+  background: '#fff',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 700,
+};
+
+const filterSummaryStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: '#475569',
+  lineHeight: 1.65,
 };
